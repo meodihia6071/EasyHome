@@ -15,6 +15,13 @@ public class User {
   @Column(nullable=false) public boolean verified=false;
   @Column(nullable=false) public boolean locked=false;
   @Column(nullable=false) public Instant createdAt=Instant.now();
+  // Access through methods when referenced by Hibernate lazy proxies.
+  public Long getId() { return id; }
+  public String getFullName() { return fullName; }
+  public String getEmail() { return email; }
+  public String getPhone() { return phone; }
+  public PublisherType getPublisherType() { return publisherType; }
+  public boolean isVerified() { return verified; }
   protected User() {}
   User(String name,String email,String hash,String phone,PublisherType publisherType) {
     this.fullName=name;this.email=email;this.passwordHash=hash;this.phone=phone;this.publisherType=publisherType;

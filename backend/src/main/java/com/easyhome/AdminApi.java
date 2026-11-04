@@ -16,7 +16,7 @@ public class AdminApi {
   AdminApi(Listings l,Reports r,Users u,Identity i,Audits a){listings=l;reports=r;users=u;identity=i;audits=a;}
   public record Review(String note){}
   public record ReportView(Long id,Long listingId,String listingTitle,String reporter,String reason,String status){
-    static ReportView from(Report r){return new ReportView(r.id,r.listing.id,r.listing.title,r.reporter.email,r.reason,r.status.name());}
+    static ReportView from(Report r){return new ReportView(r.id,r.listing.getId(),r.listing.getTitle(),r.reporter.getEmail(),r.reason,r.status.name());}
   }
   public record UserView(Long id,String name,String email,String role,boolean verified,boolean locked){
     static UserView from(User u){return new UserView(u.id,u.fullName,u.email,u.role.name(),u.verified,u.locked);}
@@ -26,8 +26,8 @@ public class AdminApi {
   @PostMapping("/listings/{id}/approve") @Transactional
   public ListingApi.View approve(@AuthenticationPrincipal Jwt jwt,@PathVariable Long id){
     User staff=identity.staff(jwt);Listing l=listings.locked(id).orElseThrow(()->new ResponseStatusException(HttpStatus.NOT_FOUND,"Tin không tồn tại"));
-    Rules.content(l.title,l.description,l.property.city,l.property.district,l.property.address,l.property.type,l.property.monthlyRent,l.property.area,l.property.bedrooms,l.property.imageUrl);
-    Rules.check(l.property.availability==Availability.AVAILABLE,"Nhà không sẵn sàng cho thuê");
+    Rules.content(l.title,l.description,l.property.getCity(),l.property.getDistrict(),l.property.getAddress(),l.property.getType(),l.property.getMonthlyRent(),l.property.getArea(),l.property.getBedrooms(),l.property.getImageUrl());
+    Rules.check(l.property.getAvailability()==Availability.AVAILABLE,"Nhà không sẵn sàng cho thuê");
     l.status=Rules.review(l.status,true);l.reviewNote=null;audits.save(new Audit(staff.id,"APPROVE","listing:"+l.id));return ListingApi.View.from(l);
   }
   @PostMapping("/listings/{id}/reject") @Transactional
@@ -44,7 +44,7 @@ public class AdminApi {
   public ReportView remove(@AuthenticationPrincipal Jwt jwt,@PathVariable Long id){
     User staff=identity.staff(jwt);Report r=reports.findById(id).orElseThrow(()->new ResponseStatusException(HttpStatus.NOT_FOUND,"Không tìm thấy báo cáo"));
     Rules.check(r.status==ReportStatus.OPEN,"Đã xử lý báo cáo");
-    Listing l=listings.locked(r.listing.id).orElseThrow();
+    Listing l=listings.locked(r.listing.getId()).orElseThrow();
     l.status=ListingStatus.REMOVED;r.status=ReportStatus.RESOLVED;
     audits.save(new Audit(staff.id,"REMOVE_REPORTED_LISTING","listing:"+l.id));return ReportView.from(r);
   }

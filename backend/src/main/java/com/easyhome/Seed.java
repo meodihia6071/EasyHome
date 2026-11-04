@@ -10,7 +10,7 @@ import org.springframework.context.annotation.*;
 import org.springframework.security.crypto.password.PasswordEncoder;
 @Configuration
 public class Seed {
-  @Bean CommandLineRunner seed(Users users,Properties properties,Listings listings,PasswordEncoder encoder,
+  @Bean CommandLineRunner seedDemoData(Users users,Properties properties,Listings listings,PasswordEncoder encoder,
       @Value("${app.seed-demo}") boolean enabled){
     return args->{
       if(!enabled||users.count()>0)return;

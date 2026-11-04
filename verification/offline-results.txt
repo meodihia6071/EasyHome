@@ -17,3 +17,10 @@ PASS syntax src/pages.jsx
 PASS syntax src/main.jsx
 PASS syntax src/api.js
 PASS syntax vite.config.js
+
+Hotfix 2026-11-05 (Windows MockMvc failures, Hibernate LAZY access):
+Source review: replaced direct field access via LAZY proxies in API and DTO code.
+Core business rules: PASS 177/177 (Java 21, javac -Xlint:all -Werror)
+Java parsing with JDK compiler --release 21: PASS (20 .java files, 0 syntax errors)
+5 MockMvc integration tests: PENDING real Maven rerun (3 earlier tests FAILED on unpatched source)
+Maven command on Windows: cd backend && mvn clean test

@@ -2,13 +2,13 @@
 
 **Bản làm lại độc lập**, không kế thừa GitHub cũ. EasyHome là trung gian **thu phí đăng/quảng bá tin**; không nhận tiền cọc, tiền thuê, không duyệt yêu cầu thuê thay chủ nhà. Người tìm thuê liên hệ trực tiếp với người đăng tin.
 
-> **Trạng thái:** Có source React + Spring Boot + H2/MySQL và bộ test. Bộ quy tắc Java đã chạy thành công 177 phép kiểm tra. **Chưa xác minh build Spring Boot, React hoặc luồng HTTP chạy thật trong phiên phát triển này** (môi trường không có Maven và không tải được npm packages). Xem `TEST_REPORT.md`.
+> **Trạng thái:** Có source React + Spring Boot + H2/MySQL và bộ test. Bộ quy tắc Java đã chạy thành công 177 phép kiểm tra. **Maven trên Windows đã biên dịch 19 source Java và khởi động Spring context kiểm thử thành công nhưng 3 test tích hợp trước bản sửa LAZY bị lỗi**. Bản vá hiện tại đã sửa source và thêm test hồi quy; **chưa có kết quả Maven test sau bản vá** (môi trường tạo bản vá thiếu Maven). React build và E2E chưa xác minh. Xem `TEST_REPORT.md`.
 
 ## 1. Khởi chạy
 
 **Yêu cầu:** JDK 21, Maven 3.9+, Node.js 22+, npm; cần mạng Internet ở lần cài dependencies. **Không cần MySQL** cho bản local.
 
-**Windows:** Nhấp đúp `start-dev.bat` ở thư mục gốc. Nếu muốn tự chạy:
+**Windows:** Giải nén ZIP một lần vào thư mục trống (tránh lồng nhiều thư mục `easyhome`), mở thư mục có `README.md`, `backend/`, `frontend/`. Chạy `cd backend` rồi **`mvn clean test` trước**; chỉ chạy ứng dụng sau khi xuất hiện `BUILD SUCCESS`. Nhấp đúp `start-dev.bat` ở thư mục gốc hoặc chạy thủ công:
 
 ```powershell
 # Terminal 1, đứng trong easyhome/backend
@@ -151,3 +151,8 @@ git push -u origin main
 ```
 
 Không commit `.env`, dữ liệu DB, mật khẩu ngoài demo. Nếu chạy CI, kiểm tra tab Actions để thấy kết quả `mvn test` và `npm run build` trên môi trường có Internet.
+
+## Khắc phục lỗi đã gặp
+
+Nếu bản ZIP cũ báo `The bean 'seed' ... could not be registered` thì phiên bản đã cập nhật đổi tên Bean ở `Seed.java` thành `seedDemoData`. Sau khi thay source, vào `backend` chạy `mvn clean test` rồi `mvn spring-boot:run`. Không sử dụng `spring.main.allow-bean-definition-overriding=true`. Chi tiết ghi tại `PROGRESS.md` và `TEST_REPORT.md`.
+
