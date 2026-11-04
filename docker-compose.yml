@@ -1,0 +1,38 @@
+services:
+  db:
+    image: mysql:8.4
+    environment:
+      MYSQL_DATABASE: easyhome
+      MYSQL_USER: easyhome
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?Set MYSQL_PASSWORD in .env}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?Set MYSQL_ROOT_PASSWORD in .env}
+    volumes:
+      - easyhome_db:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -uroot -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 7s
+      timeout: 5s
+      retries: 20
+  backend:
+    build: ./backend
+    environment:
+      DB_URL: jdbc:mysql://db:3306/easyhome?useSSL=false&allowPublicKeyRetrieval=true&connectionTimeZone=UTC
+      DB_USER: easyhome
+      DB_PASSWORD: ${MYSQL_PASSWORD:?Set MYSQL_PASSWORD in .env}
+      DB_DRIVER: com.mysql.cj.jdbc.Driver
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env}
+      APP_SEED_DEMO: ${APP_SEED_DEMO:-true}
+      APP_MOCK_PAYMENTS: ${APP_MOCK_PAYMENTS:-true}
+    ports:
+      - "8081:8081"
+    depends_on:
+      db:
+        condition: service_healthy
+  frontend:
+    build: ./frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+volumes:
+  easyhome_db:
