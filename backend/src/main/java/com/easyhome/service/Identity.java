@@ -35,5 +35,5 @@ public class Identity {
   }
   public User staff(Jwt jwt){User u=current(jwt);if(u.role!=AccountRole.MODERATOR&&u.role!=AccountRole.ADMIN&&u.role!=AccountRole.SUPER_ADMIN)throw new ResponseStatusException(HttpStatus.FORBIDDEN,"Không có quyền kiểm duyệt");return u;}
   public User admin(Jwt jwt){User u=current(jwt);if(u.role!=AccountRole.ADMIN&&u.role!=AccountRole.SUPER_ADMIN)throw new ResponseStatusException(HttpStatus.FORBIDDEN,"Chỉ Admin được thao tác");return u;}
-  User finance(Jwt jwt){User u=current(jwt);if(u.role!=AccountRole.FINANCE&&u.role!=AccountRole.ADMIN&&u.role!=AccountRole.SUPER_ADMIN)throw new ResponseStatusException(HttpStatus.FORBIDDEN,"Không có quyền tài chính");return u;}
+  public User finance(Jwt jwt){User u=current(jwt);if(u.role!=AccountRole.FINANCE&&u.role!=AccountRole.ADMIN&&u.role!=AccountRole.SUPER_ADMIN)throw new ResponseStatusException(HttpStatus.FORBIDDEN,"Không có quyền tài chính");return u;}
 }

@@ -6,6 +6,19 @@ spring:
     username: ${DB_USER:root}
     password: ${DB_PASSWORD:}
     driver-class-name: ${DB_DRIVER:org.mariadb.jdbc.Driver}
+  mail:
+    host: ${SMTP_HOST:smtp.gmail.com}
+    port: ${SMTP_PORT:587}
+    username: ${SMTP_USERNAME:}
+    password: ${SMTP_APP_PASSWORD:}
+    default-encoding: UTF-8
+    properties:
+      "[mail.smtp.auth]": true
+      "[mail.smtp.starttls.enable]": true
+      "[mail.smtp.starttls.required]": true
+      "[mail.smtp.connectiontimeout]": 10000
+      "[mail.smtp.timeout]": 10000
+      "[mail.smtp.writetimeout]": 10000
   servlet:
     multipart:
       max-file-size: 6MB
@@ -26,5 +39,5 @@ app:
   seed-demo: ${APP_SEED_DEMO:true}
   mock-payments: ${APP_MOCK_PAYMENTS:false}
   email-mode: ${APP_EMAIL_MODE:smtp}
-  email-from: ${APP_EMAIL_FROM:no-reply@easyhome.vn}
+  email-from: ${APP_EMAIL_FROM:${SMTP_USERNAME:no-reply@easyhome.vn}}
   private-storage: ${PRIVATE_STORAGE:./private-uploads}

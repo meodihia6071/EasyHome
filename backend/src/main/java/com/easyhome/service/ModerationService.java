@@ -21,7 +21,7 @@ public class ModerationService {
   ModerationService(Listings l,ListingReviews r,MediaFiles m,BillingApi b,Audits a){listings=l;reviews=r;media=m;billing=b;audits=a;}
   private Listing ownedPending(long id){
     Listing l=listings.locked(id).orElseThrow(()->new ResponseStatusException(HttpStatus.NOT_FOUND));
-    RulesV2.require(l.status==ListingStatus.PENDING_REVIEW,"Tin không chờ kiểm duyệt");return l;
+    RulesV2.require(l.getStatus()==ListingStatus.PENDING_REVIEW,"Tin không chờ kiểm duyệt");return l;
   }
   void record(Listing l,Long reviewer,String decision,String note){
     ListingReview r=new ListingReview();r.listing=l;r.revision=l.reviewRevision;r.reviewerId=reviewer;r.decision=decision;r.note=note;
@@ -35,28 +35,28 @@ public class ModerationService {
     RulesV2.require(l.owner.isVerified(),"Người đăng không còn xác thực hợp lệ");
     RulesV2.require(media.countByListing_IdAndPurpose(l.id,"PUBLIC")>=2 && media.countByListing_IdAndPurpose(l.id,"EVIDENCE")>=1,"Thiếu ảnh thực tế hoặc minh chứng");
     l.activatePackage(o.plan,o.prioritySnapshot,Instant.now(),o.durationDaysSnapshot);
-    l.reviewNote=null;record(l,staff.id,"APPROVED",null);return l;
+    l.reviewNote=null;listings.saveAndFlush(l);record(l,staff.id,"APPROVED",null);return l;
   }
   @Transactional
   public Listing reject(long id,User staff,String reason){
     RulesV2.require(reason!=null&&reason.trim().length()>=10&&reason.length()<=500,"Cần lý do từ chối 10-500 ký tự");
     Listing l=ownedPending(id);ServiceOrder o=billing.paidOrder(l);
-    l.status=ListingStatus.REJECTED;l.reviewNote=reason.trim();l.needsUpdateDeadline=null;
-    billing.refund(o);record(l,staff.id,"REJECTED",reason.trim());return l;
+    l.setStatus(ListingStatus.REJECTED);l.reviewNote=reason.trim();l.needsUpdateDeadline=null;
+    billing.refund(o);listings.saveAndFlush(l);record(l,staff.id,"REJECTED",reason.trim());return l;
   }
   @Transactional
   public Listing needsUpdate(long id,User staff,String reason){
     RulesV2.require(reason!=null&&reason.trim().length()>=10&&reason.length()<=500,"Cần mô tả minh chứng cần bổ sung");
     Listing l=ownedPending(id);billing.paidOrder(l);
-    l.status=ListingStatus.NEEDS_UPDATE;l.reviewNote=reason.trim();l.needsUpdateDeadline=Instant.now().plusSeconds(72*3600);
-    record(l,staff.id,"NEEDS_UPDATE",reason.trim());return l;
+    l.setStatus(ListingStatus.NEEDS_UPDATE);l.reviewNote=reason.trim();l.needsUpdateDeadline=Instant.now().plusSeconds(72*3600);
+    listings.saveAndFlush(l);record(l,staff.id,"NEEDS_UPDATE",reason.trim());return l;
   }
   @Transactional
   public void expireNeedsUpdate(long id){
     Listing l=listings.locked(id).orElseThrow();
-    if(l.status!=ListingStatus.NEEDS_UPDATE||l.needsUpdateDeadline==null||l.needsUpdateDeadline.isAfter(Instant.now()))return;
+    if(l.getStatus()!=ListingStatus.NEEDS_UPDATE||l.needsUpdateDeadline==null||l.needsUpdateDeadline.isAfter(Instant.now()))return;
     ServiceOrder o=billing.paidOrder(l);
-    l.status=ListingStatus.REJECTED;l.reviewNote="Quá hạn bổ sung minh chứng 72 giờ";l.needsUpdateDeadline=null;
-    billing.refund(o);record(l,null,"AUTO_REJECTED",l.reviewNote);
+    l.setStatus(ListingStatus.REJECTED);l.reviewNote="Quá hạn bổ sung minh chứng 72 giờ";l.needsUpdateDeadline=null;
+    billing.refund(o);listings.saveAndFlush(l);record(l,null,"AUTO_REJECTED",l.reviewNote);
   }
 }

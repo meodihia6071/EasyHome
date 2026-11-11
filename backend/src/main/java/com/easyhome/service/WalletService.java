@@ -30,6 +30,7 @@ public class WalletService {
     RulesV2.require(delta>=0 || w.demoBalance>=-delta,"Số dư mô phỏng không đủ");
     w.demoBalance=Math.addExact(w.demoBalance,delta);
     WalletLedger e=new WalletLedger();e.wallet=w;e.delta=delta;e.action=action;e.reference=ref;ledger.save(e);
+    wallets.saveAndFlush(w);
   }
   public void refund(User u,long amount,long orderId){
     WalletAccount w=locked(u);move(w,amount,"REFUND_LISTING","refund:order:"+orderId);

@@ -106,7 +106,8 @@ public class ListingApi {
     RulesV2.require(media.countByListing_IdAndPurpose(id,"PUBLIC")>=2,"Cần ít nhất 2 ảnh thực tế công khai");
     RulesV2.require(media.countByListing_IdAndPurpose(id,"EVIDENCE")>=1,"Cần ít nhất 1 ảnh minh chứng riêng");
     RulesV2.require(l.property.getAvailability()==Availability.AVAILABLE,"Nhà không còn cho thuê");
-    l.status=Rules.submit(l.status);l.reviewRevision++;l.reviewRequestedAt=Instant.now();l.needsUpdateDeadline=null;l.reviewNote=null;
+    l.setStatus(Rules.submit(l.getStatus()));l.reviewRevision++;l.reviewRequestedAt=Instant.now();l.needsUpdateDeadline=null;l.reviewNote=null;
+    listings.saveAndFlush(l);
     audits.save(new Audit(u.id,"SUBMIT_REVIEW","listing:"+l.id));return View.from(l);
   }
   @PostMapping("/api/my/listings/{id}/relist") @Transactional
@@ -121,13 +122,13 @@ public class ListingApi {
     listings.save(fresh);audits.save(new Audit(u.id,"RELIST_DRAFT","listing:"+fresh.id));return View.from(fresh);
   }
   @PostMapping("/api/my/listings/{id}/pause") @Transactional
-  public View pause(@AuthenticationPrincipal Jwt jwt,@PathVariable Long id){Listing l=own(id,identity.current(jwt));l.status=Rules.pause(l.status);return View.from(l);}
+  public View pause(@AuthenticationPrincipal Jwt jwt,@PathVariable Long id){Listing l=own(id,identity.current(jwt));l.setStatus(Rules.pause(l.getStatus()));return View.from(l);}
   @PostMapping("/api/my/listings/{id}/resume") @Transactional
-  public View resume(@AuthenticationPrincipal Jwt jwt,@PathVariable Long id){Listing l=own(id,identity.current(jwt));l.status=Rules.resume(l.status,l.property.getAvailability(),l.expiresAt,Instant.now());return View.from(l);}
+  public View resume(@AuthenticationPrincipal Jwt jwt,@PathVariable Long id){Listing l=own(id,identity.current(jwt));l.setStatus(Rules.resume(l.getStatus(),l.property.getAvailability(),l.expiresAt,Instant.now()));return View.from(l);}
   @PostMapping("/api/my/listings/{id}/close") @Transactional
-  public View close(@AuthenticationPrincipal Jwt jwt,@PathVariable Long id){Listing l=own(id,identity.current(jwt));l.status=Rules.close(l.status);return View.from(l);}
+  public View close(@AuthenticationPrincipal Jwt jwt,@PathVariable Long id){Listing l=own(id,identity.current(jwt));l.setStatus(Rules.close(l.getStatus()));return View.from(l);}
   @PostMapping("/api/my/listings/{id}/rented") @Transactional
   public View rented(@AuthenticationPrincipal Jwt jwt,@PathVariable Long id){
-    Listing l=own(id,identity.current(jwt));l.status=Rules.close(l.status);l.property.setAvailability(Availability.RENTED);return View.from(l);
+    Listing l=own(id,identity.current(jwt));l.setStatus(Rules.close(l.getStatus()));l.property.setAvailability(Availability.RENTED);return View.from(l);
   }
 }

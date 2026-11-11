@@ -56,7 +56,9 @@ public class BillingApi {
     o.durationDaysSnapshot=selected.days;o.prioritySnapshot=selected.priority;
     o.reference="EASY-"+UUID.randomUUID().toString().replace("-","").substring(0,18).toUpperCase(Locale.ROOT);
     if(o.plan==ListingPlan.FREE){o.status=PaymentStatus.PAID;o.paidAt=Instant.now();o.paymentMethod="FREE";}
-    orders.save(o);l.status=ListingStatus.AWAITING_PAYMENT;
+    orders.save(o);l.setStatus(ListingStatus.AWAITING_PAYMENT);
+    // The payment endpoint must read the updated listing state in a separate HTTP request.
+    listings.saveAndFlush(l);
     audits.save(new Audit(u.id,"ORDER_CREATED","order:"+o.id));return OrderView.from(o);
   }
   @PostMapping("/api/orders/{id}/cancel") @Transactional
@@ -65,7 +67,7 @@ public class BillingApi {
     if(!o.buyer.getId().equals(u.id))throw new ResponseStatusException(HttpStatus.FORBIDDEN);
     Listing l=listings.locked(o.listing.getId()).orElseThrow();o=orders.locked(id).orElseThrow();
     RulesV2.require(o.status==PaymentStatus.PENDING,"Chỉ hủy đơn chưa thanh toán");
-    o.status=PaymentStatus.CANCELLED;l.status=ListingStatus.DRAFT;return OrderView.from(o);
+    o.status=PaymentStatus.CANCELLED;l.setStatus(ListingStatus.DRAFT);orders.saveAndFlush(o);listings.saveAndFlush(l);return OrderView.from(o);
   }
   @PostMapping("/api/orders/{id}/wallet-pay") @Transactional
   public OrderView payWallet(@AuthenticationPrincipal Jwt jwt,@PathVariable Long id){
@@ -73,7 +75,7 @@ public class BillingApi {
     if(!snapshot.buyer.getId().equals(u.id))throw new ResponseStatusException(HttpStatus.FORBIDDEN);
     Listing l=listings.locked(snapshot.listing.getId()).orElseThrow();ServiceOrder o=orders.locked(id).orElseThrow();
     if(o.status==PaymentStatus.PAID)return OrderView.from(o);
-    RulesV2.require(o.status==PaymentStatus.PENDING&&l.status==ListingStatus.AWAITING_PAYMENT,"Đơn không được thanh toán");
+    RulesV2.require(o.status==PaymentStatus.PENDING&&l.getStatus()==ListingStatus.AWAITING_PAYMENT,"Đơn không được thanh toán");
     WalletAccount w=wallet.locked(u);wallet.move(w,-o.priceSnapshot,"BUY_LISTING","purchase:order:"+o.id);
     markPaid(o,"DEMO_WALLET");
     PaymentTransaction t=new PaymentTransaction();t.order=o;t.payer=u;t.amount=o.priceSnapshot;
@@ -86,7 +88,7 @@ public class BillingApi {
     if(!snapshot.buyer.getId().equals(u.id))throw new ResponseStatusException(HttpStatus.FORBIDDEN);
     Listing l=listings.locked(snapshot.listing.getId()).orElseThrow();ServiceOrder o=orders.locked(id).orElseThrow();
     if(o.status==PaymentStatus.PAID)return OrderView.from(o);
-    RulesV2.require(o.status==PaymentStatus.PENDING&&l.status==ListingStatus.AWAITING_PAYMENT,"Đơn không được thanh toán");
+    RulesV2.require(o.status==PaymentStatus.PENDING&&l.getStatus()==ListingStatus.AWAITING_PAYMENT,"Đơn không được thanh toán");
     markPaid(o,"DEMO_QR");
     PaymentTransaction t=new PaymentTransaction();t.order=o;t.payer=u;t.amount=o.priceSnapshot;
     t.method="DEMO_QR";t.status="PAID";t.confirmedAt=Instant.now();t.reference="mock:order:"+o.id;payments.save(t);
@@ -97,17 +99,18 @@ public class BillingApi {
     requireDemo();User u=identity.current(jwt);ServiceOrder o=orders.findById(id).orElseThrow();
     if(!o.buyer.getId().equals(u.id))throw new ResponseStatusException(HttpStatus.FORBIDDEN);
     RulesV2.require(o.status==PaymentStatus.PENDING,"Đơn đã được xử lý");
-    Listing l=listings.locked(o.listing.getId()).orElseThrow();o.status=PaymentStatus.FAILED;l.status=ListingStatus.DRAFT;return OrderView.from(o);
+    Listing l=listings.locked(o.listing.getId()).orElseThrow();o.status=PaymentStatus.FAILED;l.setStatus(ListingStatus.DRAFT);orders.saveAndFlush(o);listings.saveAndFlush(l);return OrderView.from(o);
   }
   private void markPaid(ServiceOrder o,String method){
     o.status=PaymentStatus.PAID;o.paidAt=Instant.now();o.paymentMethod=method;
+    orders.saveAndFlush(o);
     audits.save(new Audit(o.buyer.getId(),"PAYMENT_"+method,"order:"+o.id));
   }
   public void refund(ServiceOrder o){
     if(o.status==PaymentStatus.REFUNDED)return;
     RulesV2.require(o.status==PaymentStatus.PAID,"Chưa thanh toán, không được hoàn tiền");
     if(o.priceSnapshot>0)wallet.refund(o.buyer,o.priceSnapshot,o.id);
-    o.status=PaymentStatus.REFUNDED;o.refundedAt=Instant.now();
+    o.status=PaymentStatus.REFUNDED;o.refundedAt=Instant.now();orders.saveAndFlush(o);
     audits.save(new Audit(o.buyer.getId(),"REFUND_REJECTION","order:"+o.id));
   }
   public ServiceOrder paidOrder(Listing l){return orders.findFirstByListing_IdAndStatusOrderByIdDesc(l.id,PaymentStatus.PAID)

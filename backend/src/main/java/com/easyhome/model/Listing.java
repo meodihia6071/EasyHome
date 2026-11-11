@@ -35,6 +35,8 @@ public class Listing {
   public User getOwner() { return owner; }
   public String getDescription() { return description; }
   public ListingStatus getStatus() { return status; }
+  /** Proxy-safe update. Access via method, not direct field write from controllers. */
+  public void setStatus(ListingStatus next) { this.status=java.util.Objects.requireNonNull(next); }
   public ListingPlan getPlan() { return plan; }
   public int getPriority() { return priority; }
   public Instant getPublishedAt() { return publishedAt; }

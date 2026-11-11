@@ -36,7 +36,7 @@ public class IdentityApi {
     var old=requests.findFirstByUser_IdOrderByIdDesc(u.id);
     if(old.isPresent() && old.get().status==IdentityStatus.PENDING)throw new Rules.BusinessException("Hồ sơ đang chờ duyệt");
     if(old.isPresent() && old.get().status==IdentityStatus.NEEDS_UPDATE)return IdentityView.of(old.get(),media.findByIdentityVerification_IdOrderByIdAsc(old.get().id));
-    IdentityVerification v=new IdentityVerification();v.user=u;v.status=IdentityStatus.NEEDS_UPDATE;requests.save(v);u.identityStatus=IdentityStatus.NEEDS_UPDATE;
+    IdentityVerification v=new IdentityVerification();v.user=u;v.status=IdentityStatus.NEEDS_UPDATE;requests.save(v);u.setIdentityStatus(IdentityStatus.NEEDS_UPDATE);users.saveAndFlush(u);
     return IdentityView.of(v,List.of());
   }
   @PostMapping(value="/api/identity/{id}/upload",consumes=MediaType.MULTIPART_FORM_DATA_VALUE) @Transactional
@@ -56,7 +56,8 @@ public class IdentityApi {
     Rules.check(v.status==IdentityStatus.NEEDS_UPDATE,"Hồ sơ không trong trạng thái bổ sung");
     var list=media.findByIdentityVerification_IdOrderByIdAsc(id);
     Rules.check(list.size()==2,"Cần 2 ảnh xác thực danh tính");
-    v.status=IdentityStatus.PENDING;u.identityStatus=IdentityStatus.PENDING;v.submittedAt=Instant.now();
+    v.status=IdentityStatus.PENDING;u.setIdentityStatus(IdentityStatus.PENDING);v.submittedAt=Instant.now();
+    users.saveAndFlush(u);requests.saveAndFlush(v);
     audits.save(new Audit(u.id,"IDENTITY_SUBMIT","identity:"+id));return IdentityView.of(v,list);
   }
   @GetMapping("/api/admin/identity/pending") @Transactional(readOnly=true)
@@ -68,8 +69,12 @@ public class IdentityApi {
     Rules.check(v.status==IdentityStatus.PENDING,"Hồ sơ không chờ duyệt");
     Rules.check(req!=null&&Set.of("VERIFIED","NEEDS_UPDATE","REJECTED").contains(req.decision()),"Quyết định không hợp lệ");
     if(!req.decision().equals("VERIFIED"))Rules.check(req.note()!=null&&req.note().trim().length()>=10,"Phải ghi lý do từ 10 ký tự");
-    v.status=IdentityStatus.valueOf(req.decision());User owner=users.locked(v.user.getId()).orElseThrow();owner.identityStatus=v.status;owner.verified=v.status==IdentityStatus.VERIFIED;
+    v.status=IdentityStatus.valueOf(req.decision());User owner=users.locked(v.user.getId()).orElseThrow();
+    // The owner may already be a Hibernate lazy proxy through v.user. Never write its fields directly.
+    owner.setIdentityStatus(v.status);
     v.note=req.note();v.reviewerId=staff.id;v.reviewedAt=Instant.now();
+    // Persist both the reviewed document and the account used by BillingApi in the next request.
+    users.saveAndFlush(owner);requests.saveAndFlush(v);
     audits.save(new Audit(staff.id,"IDENTITY_"+v.status,"identity:"+id));
     return IdentityView.of(v,media.findByIdentityVerification_IdOrderByIdAsc(id));
   }

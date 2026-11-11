@@ -79,9 +79,10 @@ class MarketplaceFlowTest {
        .content(body(Map.of("email",email,"code",m.group(1))))).andExpect(status().isOk());
     return login(email,"Test@12345");
   }
-  private void image(String token,long id,String purpose)throws Exception{
-    mvc.perform(multipart("/api/my/listings/"+id+"/media").file(new MockMultipartFile("file","image.png","image/png",PNG))
-       .param("purpose",purpose).header("Authorization","Bearer "+token)).andExpect(status().isOk());
+  private long image(String token,long id,String purpose)throws Exception{
+    var r=mvc.perform(multipart("/api/my/listings/"+id+"/media").file(new MockMultipartFile("file","image.png","image/png",PNG))
+       .param("purpose",purpose).header("Authorization","Bearer "+token)).andExpect(status().isOk()).andReturn();
+    return parse(r.getResponse().getContentAsString()).path("id").asLong();
   }
   private long create(String token)throws Exception{return postJson("/api/my/listings",token,parse(VALID)).path("id").asLong();}
   private long prepare(String token)throws Exception{
@@ -114,8 +115,13 @@ class MarketplaceFlowTest {
       .header("Authorization","Bearer "+token)).andExpect(status().isOk());
     action("/api/identity/"+identityId+"/submit",token);
     postJson("/api/admin/identity/"+identityId+"/review",admin,Map.of("decision","VERIFIED","note","Đã kiểm tra giấy tờ thủ công"));
+    mvc.perform(get("/api/auth/me").header("Authorization","Bearer "+token)).andExpect(status().isOk())
+      .andExpect(jsonPath("$.verified").value(true)).andExpect(jsonPath("$.identityStatus").value("VERIFIED"));
     long id=prepare(token);
     long order=order(token,id,"VIP_GOLD");
+    assertEquals(ListingStatus.AWAITING_PAYMENT,listings.findById(id).orElseThrow().getStatus());
+    mvc.perform(get("/api/my/listings").header("Authorization","Bearer "+token)).andExpect(status().isOk())
+      .andExpect(jsonPath("$[?(@.id=="+id+")].status").value(org.hamcrest.Matchers.hasItem("AWAITING_PAYMENT")));
     mvc.perform(get("/api/listings/"+id)).andExpect(status().isNotFound());
     assertEquals("PAID",action("/api/dev/orders/"+order+"/confirm",token).path("status").asText());
     assertEquals("PAID",action("/api/dev/orders/"+order+"/confirm",token).path("status").asText());
@@ -129,6 +135,7 @@ class MarketplaceFlowTest {
   @Test void rejectReturnsMockMoneyExactlyOnce()throws Exception{
     String owner=login("owner@easyhome.vn","Owner@12345"),moderator=mod();
     long id=prepare(owner),order=order(owner,id,"STANDARD");
+    assertEquals(ListingStatus.AWAITING_PAYMENT,listings.findById(id).orElseThrow().getStatus());
     action("/api/dev/orders/"+order+"/confirm",owner);
     action("/api/my/listings/"+id+"/submit",owner);
     var rejected=postJson("/api/admin/listings/"+id+"/reject",moderator,Map.of("note","Ảnh minh chứng chưa chứng minh hiện trạng cho thuê"));
@@ -161,5 +168,50 @@ class MarketplaceFlowTest {
       .andExpect(jsonPath("$[0].action").value("LOCK"));
     postJson("/api/admin/users/"+id+"/unlock",admin,Map.of("reason","Đã xác minh và xử lý khiếu nại"));
     login("user@easyhome.vn","User@123456");
+  }
+
+  @Test void privateEvidenceRequiresOwnerOrAuthorizedStaff()throws Exception{
+    String owner=login("owner@easyhome.vn","Owner@12345"),other=login("user@easyhome.vn","User@123456");
+    long id=create(owner),privateImage=image(owner,id,"EVIDENCE");
+    mvc.perform(get("/api/media/"+privateImage)).andExpect(status().isForbidden());
+    mvc.perform(get("/api/media/"+privateImage).header("Authorization","Bearer "+other))
+      .andExpect(status().isForbidden());
+    mvc.perform(get("/api/media/"+privateImage).header("Authorization","Bearer "+owner))
+      .andExpect(status().isOk());
+    mvc.perform(get("/api/media/"+privateImage).header("Authorization","Bearer "+mod()))
+      .andExpect(status().isOk());
+  }
+  @Test void publicMediaBecomesAnonymousReadableOnlyAfterApproval()throws Exception{
+    String owner=login("owner@easyhome.vn","Owner@12345"), moderator=mod();
+    long listingId=create(owner);
+    long publicImage=image(owner,listingId,"PUBLIC");
+    image(owner,listingId,"PUBLIC");
+    image(owner,listingId,"EVIDENCE");
+    mvc.perform(get("/api/media/"+publicImage)).andExpect(status().isForbidden());
+    long orderId=order(owner,listingId,"STANDARD");
+    action("/api/dev/orders/"+orderId+"/confirm",owner);
+    action("/api/my/listings/"+listingId+"/submit",owner);
+    mvc.perform(get("/api/media/"+publicImage)).andExpect(status().isForbidden());
+    action("/api/admin/listings/"+listingId+"/approve",moderator);
+    mvc.perform(get("/api/media/"+publicImage)).andExpect(status().isOk())
+      .andExpect(content().contentType(MediaType.IMAGE_PNG));
+  }
+  @Test void onlyStaffMayApproveListings()throws Exception{
+    String owner=login("owner@easyhome.vn","Owner@12345");
+    long id=prepare(owner),orderId=order(owner,id,"STANDARD");
+    action("/api/dev/orders/"+orderId+"/confirm",owner);
+    action("/api/my/listings/"+id+"/submit",owner);
+    mvc.perform(post("/api/admin/listings/"+id+"/approve")
+      .header("Authorization","Bearer "+owner)).andExpect(status().isForbidden());
+    assertEquals(ListingStatus.PENDING_REVIEW,listings.findById(id).orElseThrow().getStatus());
+  }
+  @Test void demoWalletTopupProducesLedgerEntry()throws Exception{
+    String user=registerAndVerify();
+    postJson("/api/dev/wallet/topup",user,Map.of("amount",32000));
+    var r=mvc.perform(get("/api/wallet").header("Authorization","Bearer "+user))
+      .andExpect(status().isOk()).andReturn();
+    assertEquals(32000,parse(r.getResponse().getContentAsString()).path("demoAvailable").asInt());
+    mvc.perform(get("/api/wallet/ledger").header("Authorization","Bearer "+user))
+      .andExpect(status().isOk()).andExpect(jsonPath("$[0].action").value("DEMO_TOPUP"));
   }
 }

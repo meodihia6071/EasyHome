@@ -19,5 +19,6 @@ public class IdentityVerification {
   @Column(nullable=false) public Instant submittedAt=Instant.now();
   public Instant reviewedAt;
   public Long reviewerId;
+  public User getUser() { return user; }
   public IdentityVerification() {}
 }

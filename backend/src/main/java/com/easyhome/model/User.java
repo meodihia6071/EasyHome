@@ -36,7 +36,14 @@ public class User {
   public String getEmail() { return email; }
   public String getPhone() { return phone; }
   public PublisherType getPublisherType() { return publisherType; }
-  public boolean isVerified() { return verified && identityStatus==IdentityStatus.VERIFIED; }
+  // identityStatus is the authoritative business state; verified is retained for legacy data.
+  public boolean isVerified() { return identityStatus==IdentityStatus.VERIFIED; }
+  public IdentityStatus getIdentityStatus() { return identityStatus; }
+  /** Use an entity method for state changes: safe even when Hibernate supplies a lazy proxy. */
+  public void setIdentityStatus(IdentityStatus next) {
+    this.identityStatus=java.util.Objects.requireNonNull(next);
+    this.verified=next==IdentityStatus.VERIFIED;
+  }
   public boolean isEmailVerified() { return emailVerified; }
   public User() {}
   public User(String name,String email,String hash,String phone,PublisherType publisherType) {

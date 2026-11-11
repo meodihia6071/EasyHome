@@ -33,31 +33,31 @@ public class MediaApi {
   @GetMapping("/api/my/listings/{id}/media") @Transactional(readOnly=true)
   public List<MediaView> mine(@AuthenticationPrincipal Jwt jwt,@PathVariable Long id){
     User u=identity.current(jwt);Listing l=listings.findById(id).orElseThrow();
-    if(!l.owner.getId().equals(u.id))throw new ResponseStatusException(HttpStatus.FORBIDDEN);
+    if(!l.getOwner().getId().equals(u.id))throw new ResponseStatusException(HttpStatus.FORBIDDEN);
     return media.findByListing_IdOrderByIdAsc(id).stream().map(MediaView::of).toList();
   }
   @PostMapping(value="/api/my/listings/{id}/media",consumes=MediaType.MULTIPART_FORM_DATA_VALUE) @Transactional
   public MediaView upload(@AuthenticationPrincipal Jwt jwt,@PathVariable Long id,@RequestParam String purpose,@RequestPart("file") MultipartFile file) throws IOException {
     User u=identity.current(jwt);Listing l=listings.findById(id).orElseThrow();
-    if(!l.owner.getId().equals(u.id))throw new ResponseStatusException(HttpStatus.FORBIDDEN);
+    if(!l.getOwner().getId().equals(u.id))throw new ResponseStatusException(HttpStatus.FORBIDDEN);
     RulesV2.require(l.status==ListingStatus.DRAFT||l.status==ListingStatus.REJECTED||l.status==ListingStatus.AWAITING_PAYMENT||l.status==ListingStatus.NEEDS_UPDATE,"Chỉ thêm ảnh trước khi gửi duyệt");Rules.check(Set.of("PUBLIC","EVIDENCE").contains(purpose),"Loại ảnh không hợp lệ");
     Rules.check(media.countByListing_IdAndPurpose(id,purpose)<(purpose.equals("PUBLIC")?15:10),"Đã vượt giới hạn ảnh");
     byte[] bytes=file.getBytes();String name=files.store(bytes);
     ListingMedia m=new ListingMedia();m.listing=l;m.purpose=purpose;m.storageName=name;m.contentType=PrivateMediaStorage.detect(bytes);m.bytes=bytes.length;
     media.save(m);
-    if("PUBLIC".equals(purpose) && (l.property.getImageUrl()==null || l.property.getImageUrl().isBlank()))l.property.setImageUrl("/api/media/"+m.id);
+    if("PUBLIC".equals(purpose) && (l.getProperty().getImageUrl()==null || l.getProperty().getImageUrl().isBlank()))l.getProperty().setImageUrl("/api/media/"+m.id);
     return MediaView.of(m);
   }
   @DeleteMapping("/api/my/listings/{id}/media/{mediaId}") @Transactional
   public void remove(@AuthenticationPrincipal Jwt jwt,@PathVariable Long id,@PathVariable Long mediaId){
     User u=identity.current(jwt);Listing l=listings.findById(id).orElseThrow();
-    if(!l.owner.getId().equals(u.id))throw new ResponseStatusException(HttpStatus.FORBIDDEN);
+    if(!l.getOwner().getId().equals(u.id))throw new ResponseStatusException(HttpStatus.FORBIDDEN);
     RulesV2.require(l.status==ListingStatus.DRAFT||l.status==ListingStatus.REJECTED||l.status==ListingStatus.AWAITING_PAYMENT||l.status==ListingStatus.NEEDS_UPDATE,"Chỉ xóa ảnh trước khi gửi duyệt");ListingMedia m=media.findById(mediaId).orElseThrow();
     Rules.check(m.listing!=null&&m.listing.getId().equals(id),"Ảnh không thuộc bài đăng");
     media.delete(m);
-    if("PUBLIC".equals(m.purpose) && ("/api/media/"+mediaId).equals(l.property.getImageUrl())) {
+    if("PUBLIC".equals(m.purpose) && ("/api/media/"+mediaId).equals(l.getProperty().getImageUrl())) {
       var remaining=media.findByListing_IdOrderByIdAsc(id).stream().filter(x->x.purpose.equals("PUBLIC")&&!x.id.equals(mediaId)).findFirst();
-      l.property.setImageUrl(remaining.map(x->"/api/media/"+x.id).orElse(""));
+      l.getProperty().setImageUrl(remaining.map(x->"/api/media/"+x.id).orElse(""));
     }
   }
   @GetMapping("/api/media/{id}") @Transactional(readOnly=true)
@@ -66,11 +66,11 @@ public class MediaApi {
     boolean allowed=false;
     User u=null;
     if(jwt!=null)try{u=identity.current(jwt);}catch(ResponseStatusException ignored){}
-    if(m.identityVerification!=null){allowed=u!=null&&(m.identityVerification.user.getId().equals(u.id)||u.role==AccountRole.ADMIN||u.role==AccountRole.SUPER_ADMIN);}
+    if(m.identityVerification!=null){allowed=u!=null&&(m.identityVerification.getUser().getId().equals(u.id)||u.role==AccountRole.ADMIN||u.role==AccountRole.SUPER_ADMIN);}
     else if(m.listing!=null){
       Listing l=m.listing;
-      boolean visible="PUBLIC".equals(m.purpose)&&Rules.visible(l.getStatus(),l.property.getAvailability(),l.expiresAt,Instant.now());
-      boolean isOwner=u!=null&&l.owner.getId().equals(u.id);
+      boolean visible="PUBLIC".equals(m.purpose)&&Rules.visible(l.getStatus(),l.getProperty().getAvailability(),l.getExpiresAt(),Instant.now());
+      boolean isOwner=u!=null&&l.getOwner().getId().equals(u.id);
       boolean mod=u!=null&&(u.role==AccountRole.MODERATOR||u.role==AccountRole.ADMIN||u.role==AccountRole.SUPER_ADMIN);
       allowed=visible||isOwner||mod;
     }

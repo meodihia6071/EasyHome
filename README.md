@@ -99,3 +99,8 @@ Tài khoản seeded **chỉ dùng trên máy local**: `admin@easyhome.vn` / `Adm
 
 ### Bản vá bổ sung: tự khởi tạo database local
 `start-dev.bat` gọi `scripts/init-local-db.ps1` trước khi chạy các terminal. Script chỉ chạy `CREATE DATABASE IF NOT EXISTS`, không xóa DB hoặc bảng nào. Flyway V1/V2 và Hibernate tạo/cập nhật schema khi backend chạy. Phải sao lưu DB cũ; không thể tự xử lý mọi trường hợp dữ liệu legacy trùng hoặc sai.
+
+
+### Gmail SMTP và kiểm thử Fix03
+- Xem `GMAIL_OTP_SETUP.md` để cấu hình Gmail App Password qua biến môi trường, không commit mật khẩu.
+- Xem `FIX03_TEST_GUIDE.md` và chạy `scripts/test-phase1.ps1` để test Maven + frontend trên Windows.

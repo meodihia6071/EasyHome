@@ -24,7 +24,7 @@ public class ModerationApi {
   @GetMapping("/api/admin/listings/{id}/moderation-detail") @Transactional(readOnly=true)
   public Detail detail(@AuthenticationPrincipal Jwt jwt,@PathVariable Long id){
     identity.staff(jwt);Listing l=listings.findById(id).orElseThrow();
-    return new Detail(ListingApi.View.from(l),l.owner.identityStatus.name(),
+    return new Detail(ListingApi.View.from(l),l.getOwner().getIdentityStatus().name(),
       media.findByListing_IdOrderByIdAsc(id).stream().map(MediaApi.MediaView::of).toList(),
       reviews.findByListing_IdOrderByCreatedAtAsc(id).stream().map(r->new ReviewView(r.revision,r.decision,r.note,r.reviewerId,r.createdAt)).toList());
   }
