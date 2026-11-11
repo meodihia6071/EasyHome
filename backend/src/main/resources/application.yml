@@ -6,6 +6,14 @@ spring:
     username: ${DB_USER:root}
     password: ${DB_PASSWORD:}
     driver-class-name: ${DB_DRIVER:org.mariadb.jdbc.Driver}
+  servlet:
+    multipart:
+      max-file-size: 6MB
+      max-request-size: 7MB
+  flyway:
+    enabled: ${FLYWAY_ENABLED:true}
+    baseline-on-migrate: true
+    baseline-version: 1
   jpa:
     open-in-view: false
     hibernate:
@@ -16,4 +24,7 @@ spring:
 app:
   jwt-secret: ${JWT_SECRET:easyhome-local-demo-only-secret-change-before-deploy-2026}
   seed-demo: ${APP_SEED_DEMO:true}
-  mock-payments: ${APP_MOCK_PAYMENTS:true}
+  mock-payments: ${APP_MOCK_PAYMENTS:false}
+  email-mode: ${APP_EMAIL_MODE:smtp}
+  email-from: ${APP_EMAIL_FROM:no-reply@easyhome.vn}
+  private-storage: ${PRIVATE_STORAGE:./private-uploads}

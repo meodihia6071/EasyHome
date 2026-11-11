@@ -1,126 +1,165 @@
 package com.easyhome;
+import com.easyhome.common.Rules;
+import com.easyhome.common.Rules.*;
+import com.easyhome.common.RulesV2;
+import com.easyhome.model.*;
+import com.easyhome.repository.*;
+import com.easyhome.repository.Properties;
+import com.easyhome.service.*;
+import com.easyhome.api.*;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import java.util.UUID;
+import java.io.*;
 import java.nio.charset.StandardCharsets;
+import java.util.*;
+import java.util.regex.*;
 import org.junit.jupiter.api.Test;
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-@SpringBootTest(properties={"spring.datasource.url=jdbc:h2:mem:easyhome_tests;DB_CLOSE_DELAY=-1", "spring.jpa.hibernate.ddl-auto=create-drop", "app.seed-demo=true", "app.mock-payments=true"})
+/** Integration tests for the approved Phase-1 flow. Requires Maven dependencies. */
+@SpringBootTest(properties={"spring.datasource.url=jdbc:h2:mem:easyhome_v2;DB_CLOSE_DELAY=-1", "spring.jpa.hibernate.ddl-auto=create-drop", "spring.flyway.enabled=false", "app.seed-demo=true", "app.mock-payments=true", "app.email-mode=console"})
 @AutoConfigureMockMvc
+@ActiveProfiles("test")
 class MarketplaceFlowTest {
   @Autowired MockMvc mvc;
-  @Autowired ObjectMapper json;
+  @Autowired ObjectMapper mapper;
   @Autowired Listings listings;
+  @Autowired Wallets wallets;
+  @Autowired Users users;
+  private static final byte[] PNG=Base64.getDecoder().decode("iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAFklEQVR4nGNcUJHCwMDAxMDAwMDAAAASNgGAoiIFpwAAAABJRU5ErkJggg==");
   private static final String VALID="""
-    {"title":"Căn hộ kiểm thử hai phòng ngủ", "description":"Căn hộ test có đầy đủ tiện ích cơ bản và cửa sổ rộng thoáng mát.",
-     "city":"Hà Nội","district":"Cầu Giấy","address":"Đường Trần Thái Tông","type":"APARTMENT",
-     "monthlyRent":8500000,"area":65,"bedrooms":2,"imageUrl":"https://example.com/home.jpg"}
-    """;
-  private MockHttpServletRequestBuilder req(String path,String token,String body){
-    MockHttpServletRequestBuilder b=post(path).contentType(MediaType.APPLICATION_JSON).characterEncoding(StandardCharsets.UTF_8).header("Authorization","Bearer "+token);
-    return body==null?b:b.content(body.getBytes(StandardCharsets.UTF_8));
+      {"title":"Căn hộ kiểm thử hai phòng ngủ","description":"Căn hộ có nội thất cơ bản, ban công rộng, ảnh minh chứng thực tế và tiện ích đầy đủ.",
+       "city":"Hà Nội","district":"Cầu Giấy","address":"Trần Thái Tông","type":"APARTMENT",
+       "monthlyRent":8500000,"area":65,"bedrooms":2,"imageUrl":""}
+      """;
+  private String body(Map<String,Object> m)throws Exception{return mapper.writeValueAsString(m);}
+  private JsonNode parse(String s)throws Exception{return mapper.readTree(s);}
+  private String login(String email,String password)throws Exception{
+    var r=mvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON)
+        .content(body(Map.of("email",email,"password",password)))).andExpect(status().isOk()).andReturn();
+    return parse(r.getResponse().getContentAsString()).path("token").asText();
   }
-  private JsonNode parse(String content)throws Exception {return json.readTree(content);}
-  private String login(String email,String password)throws Exception {
-    var result=mvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON)
-      .content(json.writeValueAsString(java.util.Map.of("email",email,"password",password)))).andExpect(status().isOk()).andReturn();
-    return parse(result.getResponse().getContentAsString()).path("token").asText();
+  private String admin()throws Exception{return login("admin@easyhome.vn","Admin@12345");}
+  private String mod()throws Exception{return login("mod@easyhome.vn","Mod@123456");}
+  private JsonNode postJson(String path,String token,Object content)throws Exception{
+    var r=mvc.perform(post(path).contentType(MediaType.APPLICATION_JSON).header("Authorization","Bearer "+token)
+      .content(mapper.writeValueAsBytes(content))).andExpect(status().isOk()).andReturn();
+    return parse(r.getResponse().getContentAsString());
   }
-  private String register()throws Exception {
-    String email="tester_"+UUID.randomUUID().toString().replace("-","")+"@example.com";
-    String body=json.writeValueAsString(java.util.Map.of("fullName","User Test","email",email,"phone","0912345678","password","Test@12345","publisherType","OWNER"));
-    var response=mvc.perform(post("/api/auth/register").contentType(MediaType.APPLICATION_JSON).content(body)).andExpect(status().isOk()).andReturn();
-    return parse(response.getResponse().getContentAsString()).path("token").asText();
+  private JsonNode action(String path,String token)throws Exception{
+    var r=mvc.perform(post(path).header("Authorization","Bearer "+token)).andExpect(status().isOk()).andReturn();
+    return parse(r.getResponse().getContentAsString());
   }
-  private long create(String owner)throws Exception {
-    var response=mvc.perform(req("/api/my/listings",owner,VALID)).andExpect(status().isOk()).andExpect(jsonPath("$.status").value("DRAFT"))
-      .andExpect(jsonPath("$.city").value("Hà Nội")).andReturn();
-    return parse(response.getResponse().getContentAsString()).path("id").asLong();
+  private String registerAndVerify()throws Exception{
+    String id=UUID.randomUUID().toString().replace("-","");
+    String email="t"+id+"@example.com";String phone="09"+String.format("%08d",Math.floorMod(id.hashCode(),100_000_000));
+    ByteArrayOutputStream output=new ByteArrayOutputStream();
+    PrintStream previous=System.out;
+    try{
+      System.setOut(new PrintStream(output,true,StandardCharsets.UTF_8));
+      mvc.perform(post("/api/auth/register").contentType(MediaType.APPLICATION_JSON)
+        .content(body(Map.of("fullName","User Test","email",email,"phone",phone,"password","Test@12345","publisherType","OWNER"))))
+        .andExpect(status().isOk());
+    }finally{System.setOut(previous);}
+    mvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON)
+       .content(body(Map.of("email",email,"password","Test@12345")))).andExpect(status().isForbidden());
+    Matcher m=Pattern.compile("=> (\\d{6})").matcher(output.toString(StandardCharsets.UTF_8));
+    assertTrue(m.find(),"Dev-only email OTP must appear in test output");
+    mvc.perform(post("/api/auth/verify-email").contentType(MediaType.APPLICATION_JSON)
+       .content(body(Map.of("email",email,"code",m.group(1))))).andExpect(status().isOk());
+    return login(email,"Test@12345");
   }
-  private void review(long id,String owner,String moderator)throws Exception {
-    mvc.perform(req("/api/my/listings/"+id+"/submit",owner,null)).andExpect(status().isOk())
-      .andExpect(jsonPath("$.status").value("PENDING_REVIEW"));
-    mvc.perform(req("/api/admin/listings/"+id+"/approve",moderator,null)).andExpect(status().isOk())
-      .andExpect(jsonPath("$.status").value("AWAITING_PAYMENT"));
+  private void image(String token,long id,String purpose)throws Exception{
+    mvc.perform(multipart("/api/my/listings/"+id+"/media").file(new MockMultipartFile("file","image.png","image/png",PNG))
+       .param("purpose",purpose).header("Authorization","Bearer "+token)).andExpect(status().isOk());
   }
-  @Test void paidListingRequiresReviewAndPaymentAndReplayIsSafe()throws Exception {
-    String owner=register(),moderator=login("mod@easyhome.vn","Mod@123456");
-    long id=create(owner);
-    mvc.perform(get("/api/listings/"+id)).andExpect(status().isNotFound());
-    review(id,owner,moderator);
-    mvc.perform(get("/api/listings/"+id)).andExpect(status().isNotFound());
-    String body=json.writeValueAsString(java.util.Map.of("listingId",id,"plan","VIP"));
-    var checkout=mvc.perform(req("/api/orders",owner,body)).andExpect(status().isOk())
-      .andExpect(jsonPath("$.status").value("PENDING")).andReturn();
-    long orderId=parse(checkout.getResponse().getContentAsString()).path("id").asLong();
-    // Verify the review status really survived its transaction before payment.
-    assertEquals(Rules.ListingStatus.AWAITING_PAYMENT, listings.findById(id).orElseThrow().getStatus());
-    mvc.perform(get("/api/listings/"+id)).andExpect(status().isNotFound());
-    mvc.perform(req("/api/dev/orders/"+orderId+"/confirm",owner,null)).andExpect(status().isOk()).andExpect(jsonPath("$.status").value("PAID"));
-    assertEquals(Rules.ListingStatus.ACTIVE, listings.findById(id).orElseThrow().getStatus());
-    mvc.perform(req("/api/dev/orders/"+orderId+"/confirm",owner,null)).andExpect(status().isOk()).andExpect(jsonPath("$.status").value("PAID"));
-    mvc.perform(get("/api/listings/"+id)).andExpect(status().isOk()).andExpect(jsonPath("$.plan").value("VIP"));
+  private long create(String token)throws Exception{return postJson("/api/my/listings",token,parse(VALID)).path("id").asLong();}
+  private long prepare(String token)throws Exception{
+    long id=create(token);
+    image(token,id,"PUBLIC");image(token,id,"PUBLIC");image(token,id,"EVIDENCE");return id;
   }
-  @Test void freeBenefitLimitedAndRelistAfterClose()throws Exception {
-    String owner=register(),moderator=login("mod@easyhome.vn","Mod@123456");
-    long one=create(owner),two=create(owner);review(one,owner,moderator);review(two,owner,moderator);
-    mvc.perform(req("/api/orders",owner,"{\"listingId\":"+one+",\"plan\":\"FREE\"}"))
-      .andExpect(status().isOk()).andExpect(jsonPath("$.status").value("PAID"));
-    mvc.perform(req("/api/orders",owner,"{\"listingId\":"+two+",\"plan\":\"FREE\"}"))
+  private long order(String token,long listingId,String plan)throws Exception{
+    return postJson("/api/orders",token,Map.of("listingId",listingId,"plan",plan)).path("id").asLong();
+  }
+  @Test void otpEmailVerifiedAndPhoneUnique()throws Exception{
+    String id=UUID.randomUUID().toString().replace("-","");
+    String email="check"+id+"@example.com";
+    String phone="0901234567";
+    mvc.perform(post("/api/auth/register").contentType(MediaType.APPLICATION_JSON)
+      .content(body(Map.of("fullName","Otp user","email",email,"phone",phone,"password","Test@12345","publisherType","OWNER"))))
+      .andExpect(status().isOk());
+    mvc.perform(post("/api/auth/register").contentType(MediaType.APPLICATION_JSON)
+      .content(body(Map.of("fullName","Other user","email","duplicate"+id+"@example.com","phone","+84901234567","password","Test@12345","publisherType","OWNER"))))
       .andExpect(status().isBadRequest());
-    mvc.perform(req("/api/my/listings/"+one+"/close",owner,null)).andExpect(status().isOk());
-    mvc.perform(get("/api/listings/"+one)).andExpect(status().isNotFound());
-    mvc.perform(req("/api/my/listings/"+one+"/relist",owner,null)).andExpect(status().isOk())
-      .andExpect(jsonPath("$.status").value("DRAFT"));
+    mvc.perform(post("/api/auth/verify-email").contentType(MediaType.APPLICATION_JSON)
+      .content(body(Map.of("email",email,"code","000000")))).andExpect(status().isBadRequest());
   }
-  @Test void crossAccountOperationsBlockedAndInvalidListingRejected()throws Exception {
-    String owner=register(),other=register();long id=create(owner);
-    mvc.perform(req("/api/my/listings/"+id+"/submit",other,null)).andExpect(status().isForbidden());
-    mvc.perform(req("/api/my/listings",owner,"{\"title\":\"bad\"}"))
+  @Test void identityThenPayThenApproveAndPublicVisible()throws Exception{
+    String token=registerAndVerify(),admin=admin(),moderator=mod();
+    long initialId=create(token);
+    mvc.perform(post("/api/orders").header("Authorization","Bearer "+token).contentType(MediaType.APPLICATION_JSON)
+      .content(body(Map.of("listingId",initialId,"plan","VIP_GOLD")))).andExpect(status().isBadRequest());
+    long identityId=action("/api/identity/start",token).path("id").asLong();
+    for(int i=0;i<2;i++)mvc.perform(multipart("/api/identity/"+identityId+"/upload").file(new MockMultipartFile("file","card.png","image/png",PNG))
+      .header("Authorization","Bearer "+token)).andExpect(status().isOk());
+    action("/api/identity/"+identityId+"/submit",token);
+    postJson("/api/admin/identity/"+identityId+"/review",admin,Map.of("decision","VERIFIED","note","Đã kiểm tra giấy tờ thủ công"));
+    long id=prepare(token);
+    long order=order(token,id,"VIP_GOLD");
+    mvc.perform(get("/api/listings/"+id)).andExpect(status().isNotFound());
+    assertEquals("PAID",action("/api/dev/orders/"+order+"/confirm",token).path("status").asText());
+    assertEquals("PAID",action("/api/dev/orders/"+order+"/confirm",token).path("status").asText());
+    assertEquals("PENDING_REVIEW",action("/api/my/listings/"+id+"/submit",token).path("status").asText());
+    mvc.perform(get("/api/listings/"+id)).andExpect(status().isNotFound());
+    mvc.perform(get("/api/admin/listings/"+id+"/moderation-detail").header("Authorization","Bearer "+moderator)).andExpect(status().isOk())
+      .andExpect(jsonPath("$.media.length()").value(3));
+    assertEquals("ACTIVE",action("/api/admin/listings/"+id+"/approve",moderator).path("status").asText());
+    mvc.perform(get("/api/listings/"+id)).andExpect(status().isOk()).andExpect(jsonPath("$.plan").value("VIP_GOLD"));
+  }
+  @Test void rejectReturnsMockMoneyExactlyOnce()throws Exception{
+    String owner=login("owner@easyhome.vn","Owner@12345"),moderator=mod();
+    long id=prepare(owner),order=order(owner,id,"STANDARD");
+    action("/api/dev/orders/"+order+"/confirm",owner);
+    action("/api/my/listings/"+id+"/submit",owner);
+    var rejected=postJson("/api/admin/listings/"+id+"/reject",moderator,Map.of("note","Ảnh minh chứng chưa chứng minh hiện trạng cho thuê"));
+    assertEquals("REJECTED",rejected.path("status").asText());
+    var bal=mvc.perform(get("/api/wallet").header("Authorization","Bearer "+owner)).andExpect(status().isOk()).andReturn();
+    assertEquals(29000,parse(bal.getResponse().getContentAsString()).path("demoAvailable").asInt());
+    mvc.perform(post("/api/admin/listings/"+id+"/reject").header("Authorization","Bearer "+moderator)
+      .contentType(MediaType.APPLICATION_JSON).content(body(Map.of("note","Thử lặp lại yêu cầu từ chối"))))
       .andExpect(status().isBadRequest());
-    mvc.perform(post("/api/my/listings").contentType(MediaType.APPLICATION_JSON).content(VALID)).andExpect(status().isUnauthorized());
+    var again=mvc.perform(get("/api/wallet").header("Authorization","Bearer "+owner)).andExpect(status().isOk()).andReturn();
+    assertEquals(29000,parse(again.getResponse().getContentAsString()).path("demoAvailable").asInt());
   }
-  @Test void lazyRelationsKeepListingDetailsAndContactData()throws Exception {
-    String owner=register(),moderator=login("mod@easyhome.vn","Mod@123456"),renter=register();
-    long id=create(owner);
-    mvc.perform(get("/api/my/listings").header("Authorization","Bearer "+owner))
-      .andExpect(status().isOk()).andExpect(jsonPath("$[0].city").value("Hà Nội"))
-      .andExpect(jsonPath("$[0].ownerName").value("User Test"));
-    review(id,owner,moderator);
-    mvc.perform(req("/api/orders",owner,"{\"listingId\":"+id+",\"plan\":\"FREE\"}"))
-      .andExpect(status().isOk()).andExpect(jsonPath("$.status").value("PAID"));
-    mvc.perform(get("/api/listings/"+id)).andExpect(status().isOk())
-      .andExpect(jsonPath("$.city").value("Hà Nội"))
-      .andExpect(jsonPath("$.ownerName").value("User Test"));
-    mvc.perform(req("/api/my/favorites/"+id,renter,null)).andExpect(status().isOk());
-    mvc.perform(get("/api/my/favorites").header("Authorization","Bearer "+renter))
-      .andExpect(status().isOk()).andExpect(jsonPath("$[0].ownerName").value("User Test"));
-    mvc.perform(req("/api/listings/"+id+"/contact",renter,"{\"message\":\"Tôi muốn tìm hiểu về căn hộ này\"}"))
-      .andExpect(status().isOk()).andExpect(jsonPath("$.title").value("Căn hộ kiểm thử hai phòng ngủ"));
-    mvc.perform(get("/api/my/leads").header("Authorization","Bearer "+owner))
-      .andExpect(status().isOk()).andExpect(jsonPath("$[0].sender").value("User Test"));
+  @Test void freeOnceAfterActualApproval()throws Exception{
+    String owner=login("owner@easyhome.vn","Owner@12345"),moderator=mod();
+    long first=prepare(owner),second=prepare(owner);
+    order(owner,first,"FREE");action("/api/my/listings/"+first+"/submit",owner);
+    mvc.perform(post("/api/orders").header("Authorization","Bearer "+owner).contentType(MediaType.APPLICATION_JSON)
+      .content(body(Map.of("listingId",second,"plan","FREE")))).andExpect(status().isBadRequest());
+    action("/api/admin/listings/"+first+"/approve",moderator);
+    mvc.perform(post("/api/orders").header("Authorization","Bearer "+owner).contentType(MediaType.APPLICATION_JSON)
+      .content(body(Map.of("listingId",second,"plan","FREE")))).andExpect(status().isBadRequest());
   }
-  @Test void editedDraftPropertyDetailsSurviveReloadFromDatabase()throws Exception {
-    String owner=register(),moderator=login("mod@easyhome.vn","Mod@123456");
-    long id=create(owner);
-    String revised=VALID.replace("Hà Nội","Đà Nẵng").replace("8500000","9200000");
-    mvc.perform(put("/api/my/listings/"+id).header("Authorization","Bearer "+owner)
-      .contentType(MediaType.APPLICATION_JSON).characterEncoding(StandardCharsets.UTF_8)
-      .content(revised.getBytes(StandardCharsets.UTF_8)))
-      .andExpect(status().isOk()).andExpect(jsonPath("$.city").value("Đà Nẵng"));
-    mvc.perform(get("/api/my/listings/"+id).header("Authorization","Bearer "+owner))
-      .andExpect(status().isOk()).andExpect(jsonPath("$.city").value("Đà Nẵng"))
-      .andExpect(jsonPath("$.monthlyRent").value(9200000));
-    review(id,owner,moderator);
+  @Test void locksHaveHistoryAndUnlockAllowsLogin()throws Exception{
+    String owner=login("user@easyhome.vn","User@123456"),admin=admin();
+    Long id=users.findByEmailIgnoreCase("user@easyhome.vn").orElseThrow().id;
+    postJson("/api/admin/users/"+id+"/lock",admin,Map.of("reason","Có dấu hiệu gửi spam liên hệ nhiều lần","days",7));
+    mvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON)
+      .content(body(Map.of("email","user@easyhome.vn","password","User@123456")))).andExpect(status().isForbidden());
+    mvc.perform(get("/api/admin/users/"+id+"/lock-history").header("Authorization","Bearer "+admin)).andExpect(status().isOk())
+      .andExpect(jsonPath("$[0].action").value("LOCK"));
+    postJson("/api/admin/users/"+id+"/unlock",admin,Map.of("reason","Đã xác minh và xử lý khiếu nại"));
+    login("user@easyhome.vn","User@123456");
   }
 }

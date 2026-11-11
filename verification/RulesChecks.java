@@ -1,5 +1,6 @@
 package com.easyhome;
-import com.easyhome.Rules.*;
+import com.easyhome.common.Rules;
+import com.easyhome.common.Rules.*;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -32,21 +33,21 @@ public class RulesChecks {
     bad(()->Rules.content(title,desc,city,district,address,type,price,44d,-1,image),"bedrooms negative");
     bad(()->Rules.content(title,desc,city,district,address,type,price,44d,31,image),"bedrooms max");
     bad(()->Rules.content(title,desc,city,district,address,type,price,44d,2,"javascript:alert(1)"),"image unsafe scheme");
-    bad(()->Rules.content(title,desc,city,district,address,type,price,44d,2,""),"image blank");
+    Rules.content(title,desc,city,district,address,type,price,44d,2,"");passed++; // draft permits uploading images after saving
     for(ListingStatus status:ListingStatus.values()){
-      if(status==ListingStatus.DRAFT||status==ListingStatus.REJECTED)ok(Rules.submit(status)==ListingStatus.PENDING_REVIEW,"submit "+status);
+      if(status==ListingStatus.AWAITING_PAYMENT||status==ListingStatus.NEEDS_UPDATE)ok(Rules.submit(status)==ListingStatus.PENDING_REVIEW,"submit "+status);
       else bad(()->Rules.submit(status),"submit "+status);
     }
     for(ListingStatus status:ListingStatus.values()){
-      if(status==ListingStatus.PENDING_REVIEW){ok(Rules.review(status,true)==ListingStatus.AWAITING_PAYMENT,"approve");ok(Rules.review(status,false)==ListingStatus.REJECTED,"reject");}
+      if(status==ListingStatus.PENDING_REVIEW){ok(Rules.review(status,true)==ListingStatus.ACTIVE,"approve");ok(Rules.review(status,false)==ListingStatus.REJECTED,"reject");}
       else{bad(()->Rules.review(status,true),"review approved "+status);bad(()->Rules.review(status,false),"review rejected "+status);}
     }
     for(ListingStatus status:ListingStatus.values()){
-      if(status==ListingStatus.AWAITING_PAYMENT){Rules.checkout(status);passed++;}
+      if(status==ListingStatus.DRAFT||status==ListingStatus.REJECTED){Rules.checkout(status);passed++;}
       else bad(()->Rules.checkout(status),"checkout "+status);
     }
     for(ListingStatus status:ListingStatus.values()){
-      if(status==ListingStatus.DRAFT||status==ListingStatus.REJECTED){Rules.edit(status);passed++;}
+      if(status==ListingStatus.DRAFT||status==ListingStatus.REJECTED||status==ListingStatus.NEEDS_UPDATE){Rules.edit(status);passed++;}
       else bad(()->Rules.edit(status),"edit "+status);
     }
     for(ListingStatus status:ListingStatus.values()){
@@ -74,15 +75,15 @@ public class RulesChecks {
     }
     ok(!Rules.visible(ListingStatus.ACTIVE,Availability.AVAILABLE,now,now),"expiry boundary");
     ok(!Rules.visible(ListingStatus.ACTIVE,Availability.AVAILABLE,null,now),"null expiry");
-    ok(Rules.activate(ListingStatus.AWAITING_PAYMENT,Availability.AVAILABLE)==ListingStatus.ACTIVE,"activate valid");
-    for(Availability a:Availability.values())if(a!=Availability.AVAILABLE)bad(()->Rules.activate(ListingStatus.AWAITING_PAYMENT,a),"activate "+a);
-    for(ListingStatus status:ListingStatus.values())if(status!=ListingStatus.AWAITING_PAYMENT)bad(()->Rules.activate(status,Availability.AVAILABLE),"activate "+status);
+    ok(Rules.activate(ListingStatus.PENDING_REVIEW,Availability.AVAILABLE)==ListingStatus.ACTIVE,"activate valid");
+    for(Availability a:Availability.values())if(a!=Availability.AVAILABLE)bad(()->Rules.activate(ListingStatus.PENDING_REVIEW,a),"activate "+a);
+    for(ListingStatus status:ListingStatus.values())if(status!=ListingStatus.PENDING_REVIEW)bad(()->Rules.activate(status,Availability.AVAILABLE),"activate "+status);
     for(ListingPlan plan:ListingPlan.values()){
       ok(Rules.expiry(now,plan).equals(now.plus(plan.days,ChronoUnit.DAYS)),"plan duration "+plan);
       ok(plan.price>=0 && plan.days>0 && plan.priority>=0,"plan rule "+plan);
     }
     bad(()->Rules.expiry(now,null),"null plan");bad(()->Rules.expiry(null,ListingPlan.STANDARD),"null payment instant");
-    ok(ListingPlan.FREE.price==0,"free 0 price");ok(ListingPlan.STANDARD.price>0,"paid standard");ok(ListingPlan.VIP.priority>ListingPlan.STANDARD.priority,"vip priority");
+    ok(ListingPlan.FREE.price==0,"free 0 price");ok(ListingPlan.STANDARD.price>0,"paid standard");ok(ListingPlan.VIP_DIAMOND.priority>ListingPlan.STANDARD.priority,"vip priority");
     System.out.println("PASS: "+passed+" business rule checks");
   }
 }

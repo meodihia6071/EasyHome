@@ -9,3 +9,6 @@ backend/data/*.trace.db
 *.mv.db
 .idea/
 .vscode/
+# Phase 1: private IDs/evidence never commit or publish
+backend/private-uploads/
+**/private-uploads/

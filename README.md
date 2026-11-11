@@ -1,158 +1,101 @@
-# EasyHome — Sàn đăng tin cho thuê nhà (MVP)
+> **Tổ chức lại source:** Xem `ARCHITECTURE.md` để hiểu cấu trúc `api/service/model/repository` (backend) và `pages/components/services` (frontend). Thao tác refactor không đổi luồng nghiệp vụ.
 
-**Bản làm lại độc lập**, không kế thừa GitHub cũ. EasyHome là trung gian **thu phí đăng/quảng bá tin**; không nhận tiền cọc, tiền thuê, không duyệt yêu cầu thuê thay chủ nhà. Người tìm thuê liên hệ trực tiếp với người đăng tin.
+# EasyHome V2.0 — Phase 1 (bản phát triển và kiểm thử)
 
-> **Trạng thái:** Có source React + Spring Boot + H2/MySQL và bộ test. Bộ quy tắc Java đã chạy thành công 177 phép kiểm tra. **Maven trên Windows đã biên dịch 19 source Java và khởi động Spring context kiểm thử thành công nhưng 3 test tích hợp trước bản sửa LAZY bị lỗi**. Bản vá hiện tại đã sửa source và thêm test hồi quy; **chưa có kết quả Maven test sau bản vá** (môi trường tạo bản vá thiếu Maven). React build và E2E chưa xác minh. Xem `TEST_REPORT.md`.
+**Nguồn chuẩn:** https://github.com/meodihia6071/EasyHome, nhánh `main` (đối chiếu commit `9851a06f80a470b7373453273c69b874ab3af637`).
 
-## 1. Khởi chạy
+**Đã viết source:** Email OTP, số điện thoại duy nhất; xác thực người đăng với 2 ảnh tài liệu riêng; ảnh đăng tin và minh chứng riêng; thanh toán giả/đơn dịch vụ/số dư; kiểm duyệt sau thanh toán; từ chối và hoàn tiền; yêu cầu bổ sung 72 giờ; khóa/mở tài khoản có lịch sử; bảng giá lưu DB, API điều chỉnh giá; yêu cầu rút mô phỏng và Finance xử lý; Flyway bổ sung bảng.
 
-**Yêu cầu:** JDK 21, Maven 3.9+, Node.js 22+, npm; cần mạng Internet ở lần cài dependencies. **Không cần MySQL** cho bản local.
+**KHÔNG SỬ DỤNG ĐỂ GIAO DỊCH TIỀN THẬT.** Nạp tiền, QR, số dư và rút đều mô phỏng. Không có kết nối ngân hàng/cổng thanh toán thật. Ảnh CCCD chỉ dùng để thử luồng bằng tài liệu thử nghiệm phù hợp; chưa nghiệm thu bảo mật dữ liệu nhạy cảm.
 
-**Windows:** Giải nén ZIP một lần vào thư mục trống (tránh lồng nhiều thư mục `easyhome`), mở thư mục có `README.md`, `backend/`, `frontend/`. Chạy `cd backend` rồi **`mvn clean test` trước**; chỉ chạy ứng dụng sau khi xuất hiện `BUILD SUCCESS`. Nhấp đúp `start-dev.bat` ở thư mục gốc hoặc chạy thủ công:
+**KẾT QUẢ ĐÃ CHẠY Ở MÔI TRƯỜNG TẠO SOURCE:** Java rules 198/198 PASS; Java syntax parse 41 file PASS; frontend JSX syntax parse 4 file PASS. **KHÔNG CÓ MAVEN/npm dependencies hoặc MariaDB server ở môi trường biên soạn** nên `mvn clean test`, `npm run build`, Spring context và E2E chưa được xác minh. Không coi ZIP là release production.
+
+## 1. Cài đặt và chạy local trên Windows
+
+Yêu cầu: JDK 21 (khuyến nghị, tránh Java 27), Maven 3.9+, Node.js 22+, XAMPP MariaDB/MySQL, và Internet lần đầu để cài dependencies. **Sao lưu source và xuất database trước khi thử bản V2.**
+
+1. Bật **MySQL** trong XAMPP. Chạy `start-dev.bat` ở thư mục gốc để **tự tạo database `easyhome` nếu chưa có**. Nếu muốn chạy backend thủ công, chạy `powershell -ExecutionPolicy Bypass -File .\scripts\init-local-db.ps1` trong thư mục gốc trước, rồi mới chạy `mvn spring-boot:run`. Có thể tạo database thủ công bằng `database.sql` nếu script không dùng được.
+2. Mở PowerShell trong thư mục `backend`:
 
 ```powershell
-# Terminal 1, đứng trong easyhome/backend
+mvn clean test
+$env:SPRING_PROFILES_ACTIVE = 'dev'
 mvn spring-boot:run
+```
 
-# Terminal 2, đứng trong easyhome/frontend
+3. Mở PowerShell thứ hai trong `frontend`:
+
+```powershell
 npm install
 npm run dev
 ```
 
-| Địa chỉ | Dịch vụ |
-|---|---|
-| http://localhost:5173 | Web React |
-| http://localhost:8081/api/listings | REST API |
-| `backend/data/easyhome.mv.db` | File H2 tạo khi backend chạy |
+4. Trang web `http://localhost:5173`; API `http://localhost:8081/api/listings`; phpMyAdmin `http://localhost/phpmyadmin`.
 
-Backend khởi tạo 6 tin demo lần đầu trên CSDL mới. Dữ liệu H2 được giữ lại sau khi tắt. Không chạy project EasyHome cũ song song ở các cổng này.
+**Quan trọng:** Phải dùng profile `dev` để bật OTP email in trên console và thanh toán giả. Không sử dụng profile này trên máy chủ công khai. Nếu không có profile `dev`, mặc định không bật mock-payment và email phải cấu hình SMTP.
 
-**Docker (MySQL):** Cài Docker Desktop, từ thư mục gốc:
+Nếu XAMPP dùng mật khẩu hoặc cổng khác, đặt biến môi trường trước khi chạy backend:
 
 ```powershell
-copy .env.example .env
-# Mở .env và đổi JWT_SECRET, MYSQL_PASSWORD, MYSQL_ROOT_PASSWORD
-docker compose up --build -d
+$env:DB_URL = 'jdbc:mariadb://127.0.0.1:3306/easyhome'
+$env:DB_USER = 'root'
+$env:DB_PASSWORD = ''
 ```
 
-Mở **http://localhost:3000**. API ở 8081, database nằm trong volume Docker (không mở cổng MySQL ra host). Dừng bằng `docker compose down` (không dùng `-v` nếu muốn giữ dữ liệu). Docker cần Internet để tải image/dependencies.
+## 2. Luồng thử nghiệm đầy đủ
 
-## 2. Tài khoản demo — CHỈ LOCAL
+1. **Đăng ký:** mở `/register`. Email và số điện thoại không được trùng. Sau khi đăng ký, chuyển đến `/verify-email`. Mã OTP 6 số được in trong terminal backend dưới dòng `[EASYHOME DEV EMAIL OTP]`. OTP hết hạn sau 5 phút, gửi lại sau 60 giây, tối đa 5 email OTP/24h và 5 lần nhập sai/mã. Tài khoản chưa xác thực hết thời hạn chờ 24 giờ sẽ được dọn bằng scheduler.
+2. **Xác thực người đăng:** đăng nhập rồi mở `/identity`. Chọn `Bắt đầu xác thực`, tải **hai ảnh thử nghiệm** (JPEG/PNG), nhấn gửi. Admin đăng nhập → `/staff` → xem từng ảnh, duyệt hoặc yêu cầu bổ sung. Một tài khoản duyệt thành công chỉ phải xác thực lần nữa nếu sau này bị thu hồi/quy định yêu cầu.
+3. **Tạo tin:** mở `/new`, nhập thông tin và lưu `DRAFT`. `/media/:id`: tải ít nhất **hai ảnh công khai** (`PUBLIC`) và **một ảnh minh chứng riêng tư** (`EVIDENCE`). Mỗi file tối đa 6 MB, JPEG/PNG đã xác minh cấu trúc.
+4. **Mua gói:** `/checkout/:id`. Chọn FREE (0đ/7 ngày một lần), STANDARD (29.000đ/15 ngày), VIP Bạc (79.000đ/15 ngày), VIP Vàng (149.000đ/15 ngày) hoặc VIP Kim Cương (299.000đ/15 ngày). Có thể dùng `/wallet` nạp số dư demo rồi thanh toán ví DEMO, hoặc nhấn `Mô phỏng QR thành công` để tạo thanh toán giả cho đơn. **Không quét hoặc chuyển tiền thật.**
+5. **Gửi kiểm duyệt:** sau khi đơn được ghi `PAID`, bấm `Gửi tin kiểm duyệt`; `PENDING_REVIEW` không xuất hiện công khai.
+6. **Moderator:** đăng nhập `mod@easyhome.vn` (tài khoản demo), chọn `Kiểm duyệt`, mở **chi tiết bài** để kiểm tra đầy đủ nội dung, ảnh, chứng cứ và lịch sử. Duyệt → `ACTIVE` và thời hạn bắt đầu tại thời điểm duyệt. Từ chối (lý do ≥10 ký tự) → `REJECTED`, đơn `REFUNDED`, số tiền đưa vào số dư demo. Yêu cầu bổ sung → `NEEDS_UPDATE` trong 72 giờ rồi tự từ chối/hoàn khi quá hạn.
+7. **Khóa/mở:** Admin mở `/staff`, khóa theo số ngày hoặc không thời hạn, ghi lý do, xem lịch sử, mở trước hạn nếu cần. Scheduler xử lý khóa hết hạn.
+8. **Rút DEMO:** `/wallet` tạo yêu cầu rút từ **số dư giả**; Admin hoặc FINANCE `/staff` từ chối (giải phóng số dư giữ) hoặc hoàn thành **mô phỏng**, không chuyển tiền ngân hàng.
 
-| Vai trò | Tài khoản | Mật khẩu |
-|---|---|---|
-| Chủ nhà (USER) | `owner@easyhome.vn` | `Owner@12345` |
-| Người tìm thuê (USER) | `user@easyhome.vn` | `User@123456` |
-| Kiểm duyệt (MODERATOR) | `mod@easyhome.vn` | `Mod@123456` |
-| Quản trị (ADMIN) | `admin@easyhome.vn` | `Admin@12345` |
+Tài khoản seeded **chỉ dùng trên máy local**: `admin@easyhome.vn` / `Admin@12345`, `mod@easyhome.vn` / `Mod@123456`, `owner@easyhome.vn` / `Owner@12345`, `user@easyhome.vn` / `User@123456`.
 
-Không dùng dữ liệu và thông tin demo trong môi trường công khai. Trong `.env` production phải đặt `APP_SEED_DEMO=false`, `APP_MOCK_PAYMENTS=false` và tạo tài khoản quản trị bằng quy trình an toàn.
+## 3. Bảo mật dữ liệu
 
-## 3. Cấu trúc gọn
+- Ảnh được lưu ở `backend/private-uploads/`, **không** ở thư mục web public. `/api/media/{id}` kiểm tra quyền. Tài liệu xác thực chỉ owner và Admin/Super Admin xem được; Moderator chỉ xem ảnh đăng tin/minh chứng tài sản và trạng thái người đăng.
+- File upload kiểm tra magic bytes JPEG/PNG, ảnh giải mã được, giới hạn kích thước. Đường dẫn lưu trữ ngẫu nhiên, không trả về filesystem path.
+- `APP_MOCK_PAYMENTS=false` theo mặc định và profile `prod` từ chối các API giả lập. `app.email-mode=console` chỉ dùng trong profile dev/test.
+- Sổ giao dịch dùng reference duy nhất, số dư demo tách khỏi tiền thật. Không có endpoint chi tiền thật; hoàn tiền khi bị từ chối idempotent.
+- Đây là hệ thống đang phát triển, **chưa đủ điều kiện tiếp nhận CCCD thật hoặc giao dịch thật** khi chưa kiểm thử xâm nhập, quyền truy cập, lưu giữ dữ liệu và đánh giá pháp lý.
 
-```text
-easyhome/
-├── README.md
-├── PROGRESS.md            # Nhật ký, việc đã làm và còn thiếu
-├── TEST_REPORT.md         # Bằng chứng và giới hạn kiểm thử
-├── start-dev.bat
-├── docker-compose.yml
-├── backend/               # Spring Boot, Java 21; pom.xml
-├── frontend/              # React/Vite, CSS; package.json
-├── scripts/               # Kiểm tra nghiệp vụ Java
-└── verification/          # 177 kiểm tra nghiệp vụ không phụ thuộc framework
-```
+## 4. Database và nâng cấp source cũ
 
-Java đặt theo quy ước Maven tại `backend/src/main/java/com/easyhome` nhưng không chia thêm tầng thư mục con. Frontend chỉ có `src/App.jsx`, `src/pages.jsx`, `src/api.js`, `src/style.css`.
+- Flyway bổ sung bảng qua `backend/src/main/resources/db/migration/V1__base_marker.sql` và `V2__phase1_addon_tables.sql`.
+- Trên máy dev, `ddl-auto=update` còn tự bổ sung trường vào các bảng V1 (`users`, `listings`, `service_orders`). **Chưa có migration production đầy đủ cho các trường cũ**, nên profile `prod` (`ddl-auto=validate`) có thể không khởi động nếu chưa chuyển đổi schema.
+- Dữ liệu `PENDING_REVIEW`/`AWAITING_PAYMENT` thuộc luồng cũ **không tự chuyển** thành các đơn hợp lệ của luồng V2. Sau khi backup, phải đối chiếu trạng thái các tin chờ xử lý trước khi chạy V2 trên database cũ.
+- Dữ liệu H2 file cũ không được tự động nhập vào MariaDB.
+- Tài khoản demo seeded trước đó được đánh dấu xác thực theo đúng credential demo; các tài khoản thật có từ trước phải xác thực email/danh tính theo quy trình mới.
+- Đối với số điện thoại cũ dạng `0...`, đăng ký mới kiểm tra trùng cả hai dạng `0...` và `+84...`; trước khi áp dụng unique index và thay đổi dữ liệu lớn cần chuẩn hóa dữ liệu cũ có kiểm soát.
+- Nếu cần an toàn tối đa, chạy thử trên **database `easyhome_v2_test` riêng biệt** (sửa DB_URL tương ứng) trước khi chuyển bản gốc.
 
-## 4. Các chức năng đã viết vào source
+## 5. Các API mới
 
-**Khách:** Trang chủ có bộ lọc và sắp xếp, phân trang, xem chi tiết và số điện thoại người đăng. Chỉ tin `ACTIVE`, bất động sản `AVAILABLE`, còn thời hạn mới hiển thị.
+| Nhóm | Endpoint |
+|---|---|
+| OTP | `POST /api/auth/register`, `/api/auth/verify-email`, `/api/auth/resend-email` |
+| Identity | `GET /api/identity/me`, `POST /api/identity/start`, `/api/identity/{id}/upload`, `/api/identity/{id}/submit` |
+| Identity Admin | `GET /api/admin/identity/pending`, `POST /api/admin/identity/{id}/review` |
+| Media | `POST /api/my/listings/{id}/media`, `GET /api/my/listings/{id}/media`, `GET /api/media/{id}` |
+| Review | `GET /api/admin/listings/{id}/moderation-detail`, `POST /api/admin/listings/{id}/needs-update`, `/approve`, `/reject` |
+| Orders | `POST /api/orders`, `/api/orders/{id}/wallet-pay`, `/api/dev/orders/{id}/confirm`, `/api/dev/orders/{id}/fail` |
+| Wallet | `GET /api/wallet`, `/api/wallet/ledger`, `POST /api/dev/wallet/topup` |
+| Withdrawal | `GET/POST /api/wallet/withdrawals`, `GET /api/finance/withdrawals`, `POST /api/finance/withdrawals/{id}/decision` |
+| Account locks | `POST /api/admin/users/{id}/lock`, `/unlock`, `GET /api/admin/users/{id}/lock-history` |
+| Pricing | `GET /api/plans`, `POST /api/admin/plans/{code}` |
 
-**Tài khoản:** Đăng ký và đăng nhập chung cho chủ nhà/người tìm thuê; trường `publisherType` phân biệt OWNER/BROKER/AGENCY. Mật khẩu BCrypt, JWT 12 giờ; không cho người dùng tự đăng ký ADMIN/MODERATOR.
+**Giai đoạn tiếp theo, chưa có trong bản này:** giao dịch thật/QR ngân hàng, đẩy tin ngay/lượt/hẹn giờ, hội viên môi giới, tính chênh lệch nâng cấp, email SMTP production/OTP điện thoại; không dùng các tính năng demo thay thế dịch vụ thật.
 
-**Người đăng:** Tạo/sửa nháp → gửi kiểm duyệt → chờ Admin/Moderator chấp thuận → chọn gói → thanh toán mô phỏng/miễn phí → xuất bản → tạm ẩn/mở lại/đóng/đánh dấu đã thuê. Hết hạn có thể đăng lại từ tin cũ tạo một bản nháp mới.
+## 6. Bản source và hạn chế môi trường
 
-**Gói dịch vụ giả định:** FREE 7 ngày cho lần đầu; STANDARD 29.000đ/15 ngày; VIP 99.000đ/15 ngày. Đây **không phải giá thị trường**; sửa trong `Rules.java` sau khi chốt nghiệp vụ.
+- Source bàn giao là bản chỉnh sửa dựa trên các file EasyHome nhánh `main` đã đối chiếu. ZIP không kèm `.git`, dữ liệu `.env`, database hay ảnh CCCD.
+- File `frontend/package-lock.json` gốc không có trong bản ZIP nguồn do môi trường không tải được archive binary đầy đủ. Chạy `npm install` để tái tạo lock; không dùng `npm ci` cho đến khi có file lock hợp lệ.
+- Thư mục `private-uploads/` **không** được push lên GitHub và phải được backup/thiết lập phân quyền riêng khi vận hành.
+- Xem `TEST_REPORT.md` và `PHASE1_CHANGELOG.md` để biết chính xác kiểm thử đã chạy và các điểm cần nghiệm thu.
 
-**Thanh toán:** Sinh đơn có `reference`, giữ bản chụp giá/thời hạn/độ ưu tiên khi tạo đơn. Với gói trả phí, API demo xác nhận thanh toán bằng tay; xử lý xác nhận lặp an toàn và không tự gia hạn. **Không thu tiền thật.**
-
-**Người tìm thuê:** Lưu tin yêu thích, liên hệ người đăng (1 tin/người/24 giờ để giảm spam), báo cáo tin vi phạm. Không có chức năng đặt cọc/đặt thuê trên nền tảng.
-
-**Moderator/Admin:** Duyệt hoặc từ chối kèm lý do, xem và xử lý báo cáo; Admin xác minh và khóa tài khoản. Lịch sử thao tác quan trọng được lưu ở `audit_logs`.
-
-## 5. Luồng kiểm thử bằng giao diện (từng bước)
-
-1. Mở `http://localhost:5173`, thử tìm theo `Hà Nội`, thay giá và loại hình. Chọn một tin để xem chi tiết.
-2. Đăng nhập `owner@easyhome.vn` → **Quản lý tin** → **Đăng tin mới** → nhập đầy đủ tiêu đề, mô tả ≥30 ký tự, địa chỉ, giá thuê, diện tích và URL ảnh. **Lưu bản nháp**.
-3. Ở **Quản lý tin** chọn **Gửi duyệt**. Tin chuyển sang `PENDING_REVIEW` và **chưa** xuất hiện ở tìm kiếm công khai.
-4. Đăng xuất → đăng nhập `mod@easyhome.vn` → **Kiểm duyệt** → **Duyệt** tin. Tin chuyển sang `AWAITING_PAYMENT`.
-5. Đăng nhập lại chủ nhà → **Quản lý tin** → **Chọn gói & thanh toán**. Chọn `STANDARD` hoặc `VIP` → **Tạo đơn** → **Mô phỏng thanh toán thành công**. Tin chuyển sang `ACTIVE` và xuất hiện ở trang chủ.
-6. Thử xác nhận lại cùng đơn qua tab **Đơn dịch vụ**: đơn không được kích hoạt lặp. Kiểm tra **Tạm ẩn** và **Mở lại** tin.
-7. Đăng nhập `user@easyhome.vn`, mở tin → **Lưu tin** và gửi lời nhắn. Người đăng xem mục **Khách quan tâm**.
-8. Chủ nhà chọn **Đã cho thuê**; tin phải biến mất khỏi kết quả tìm kiếm. Tin không thể được mở lại bằng thao tác tạm ẩn/hiện.
-9. Tạo thêm tin rồi thử gói `FREE` bằng tài khoản chưa dùng ưu đãi. Mỗi tài khoản chỉ được hưởng **một lần**.
-10. Thử từ chối tin với lý do và chỉnh sửa bản nháp, sau đó gửi duyệt lại; gửi báo cáo tin giả từ tài khoản khác và xử lý ở Moderator.
-
-Các bước trên là **kịch bản cần xác minh trên máy chạy ứng dụng**, không phải tuyên bố rằng đã qua E2E test. Dùng `TEST_REPORT.md` để ghi kết quả thực tế.
-
-## 6. API chính
-
-| Phương thức | API | Quyền |
-|---|---|---|
-| POST | `/api/auth/register`, `/api/auth/login` | Công khai |
-| GET | `/api/listings`, `/api/listings/{id}`, `/api/plans` | Công khai |
-| GET,POST | `/api/my/listings` | Đăng nhập |
-| GET,PUT | `/api/my/listings/{id}` | Chủ tin |
-| POST | `/api/my/listings/{id}/submit` | Chủ tin |
-| POST | `/api/my/listings/{id}/pause`, `/resume`, `/close`, `/rented`, `/relist` | Chủ tin |
-| POST | `/api/orders` | Chủ tin |
-| GET | `/api/my/orders` | Đăng nhập |
-| POST | `/api/orders/{id}/cancel` | Chủ đơn |
-| POST | `/api/dev/orders/{id}/confirm` | Chủ đơn, **chỉ mock** |
-| GET,POST,DELETE | `/api/my/favorites`, `/api/my/favorites/{id}` | Đăng nhập |
-| POST | `/api/listings/{id}/contact`, `/report` | Đăng nhập |
-| GET | `/api/my/leads` | Chủ tin |
-| GET,POST | `/api/admin/*` | Moderator/Admin |
-
-Sử dụng header `Authorization: Bearer <token>` cho API đăng nhập. API tìm kiếm hỗ trợ `q`, `city`, `type`, `minPrice`, `maxPrice`, `sort=newest|priceAsc|priceDesc`, `page`, `size` (tối đa 40).
-
-## 7. Kiểm thử và CI
-
-```bash
-bash scripts/test-core.sh       # javac + 177 kiểm tra Rules.java, không cần Maven
-cd backend && mvn test          # JUnit/MockMvc: test tích hợp (cần Internet để lấy deps lần đầu)
-cd ../frontend && npm install && npm run build   # Production build React
-```
-
-Khi đẩy repository lên GitHub, `.github/workflows/ci.yml` tự chạy bài test backend và build frontend. Nếu CI FAIL, **không coi bản đó đã phát hành**; sửa và chạy lại toàn bộ trước khi merge.
-
-## 8. Giới hạn quan trọng trước triển khai thật
-
-- **Chưa tích hợp cổng thanh toán thực**, webhook, chữ ký giao dịch, đối soát ngân hàng, hóa đơn, chính sách hoàn phí. `APP_MOCK_PAYMENTS=true` phải tắt trên production, nhưng khi tắt thì cần tích hợp thanh toán thật trước khi bán gói.
-- Dữ liệu local dùng `ddl-auto=update`; production cần migration Flyway/Liquibase, sao lưu/phục hồi, HTTPS, giám sát và quản lý secrets.
-- Chưa có upload ảnh nhiều tệp/CDN, xác thực điện thoại/OTP/KYC tự động, quên mật khẩu/email, chống spam/rate-limit cấp gateway, hệ thống chống tin trùng mạnh, lịch sử sửa phiên bản tin, SEO động/SSR.
-- Không có kết quả test tích hợp HTTP/DB thực tế trong môi trường tạo mã. Cần chạy các bước 1–10 trên khi có Maven, npm, Docker. Xem `PROGRESS.md`.
-- UI dùng ảnh Unsplash cho tin demo; ảnh thực phải có quyền sử dụng và kiểm tra địa chỉ cung cấp bởi chủ nhà.
-- **Không sử dụng trực tiếp với người dùng thật trước khi kiểm thử bảo mật, dữ liệu, chính sách và nghĩa vụ pháp lý.**
-
-## 9. Khi tạo GitHub repository mới
-
-1. Tạo repository **mới, trống** tên `easyhome` (không tick "Add a README" nếu muốn push nguyên dự án).
-2. Giải nén ZIP, mở terminal tại thư mục `easyhome` (nơi có README.md):
-
-```bash
-git init
-git add .
-git commit -m "feat: initial EasyHome marketplace MVP"
-git branch -M main
-git remote add origin https://github.com/<TEN_TAI_KHOAN>/easyhome.git
-git push -u origin main
-```
-
-Không commit `.env`, dữ liệu DB, mật khẩu ngoài demo. Nếu chạy CI, kiểm tra tab Actions để thấy kết quả `mvn test` và `npm run build` trên môi trường có Internet.
-
-## Khắc phục lỗi đã gặp
-
-Nếu bản ZIP cũ báo `The bean 'seed' ... could not be registered` thì phiên bản đã cập nhật đổi tên Bean ở `Seed.java` thành `seedDemoData`. Sau khi thay source, vào `backend` chạy `mvn clean test` rồi `mvn spring-boot:run`. Không sử dụng `spring.main.allow-bean-definition-overriding=true`. Chi tiết ghi tại `PROGRESS.md` và `TEST_REPORT.md`.
-
+### Bản vá bổ sung: tự khởi tạo database local
+`start-dev.bat` gọi `scripts/init-local-db.ps1` trước khi chạy các terminal. Script chỉ chạy `CREATE DATABASE IF NOT EXISTS`, không xóa DB hoặc bảng nào. Flyway V1/V2 và Hibernate tạo/cập nhật schema khi backend chạy. Phải sao lưu DB cũ; không thể tự xử lý mọi trường hợp dữ liệu legacy trùng hoặc sai.

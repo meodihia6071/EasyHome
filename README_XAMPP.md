@@ -1,38 +1,30 @@
-# EasyHome - cháº¡y local vá»›i XAMPP / MariaDB (Phase A)
+# Chạy EasyHome V2 trên XAMPP (local dev)
 
-Ãp dá»¥ng cho branch `main` cá»§a `meodihia6071/EasyHome`. **KhÃ´ng thay Ä‘á»•i business logic.**
-
-## 1. Chuáº©n bá»‹
-- CÃ i vÃ  báº­t **MySQL** trong XAMPP Control Panel (thá»±c táº¿ lÃ  MariaDB trong nhiá»u báº£n XAMPP).
-- VÃ o `http://localhost/phpmyadmin` vÃ  táº¡o database `easyhome` dÃ¹ng `utf8mb4_unicode_ci`; hoáº·c cháº¡y file `database.sql` trong tab SQL.
-- XAMPP thÆ°á»ng dÃ¹ng user `root`, máº­t kháº©u rá»—ng cho local. Náº¿u báº¡n Ä‘Ã£ Ä‘áº·t máº­t kháº©u hoáº·c Ä‘á»•i cá»•ng, dÃ¹ng `DB_USER`, `DB_PASSWORD`, `DB_URL` Ä‘á»ƒ cáº¥u hÃ¬nh; khÃ´ng lÆ°u máº­t kháº©u vÃ o Git.
-- **KhÃ´ng báº­t Docker MySQL cÃ¹ng cá»•ng MariaDB XAMPP**. Docker Compose cá»§a dá»± Ã¡n váº«n sá»­ dá»¥ng MySQL 8.4 nhÆ° trÆ°á»›c.
-
-## 2. Cháº¡y vÃ  kiá»ƒm thá»­
-Má»Ÿ terminal trong `backend`:
+1. Sao lưu `backend/data`, database MariaDB và thư mục project cũ; không paste replace ngay nếu còn dữ liệu chưa kiểm tra.
+2. Bật MySQL trong XAMPP. **Không cần tự tạo database** nếu chạy `start-dev.bat`: file này gọi `scripts/init-local-db.ps1` để tạo database bằng `CREATE DATABASE IF NOT EXISTS`, không xóa dữ liệu cũ.
+   - Nếu bạn khởi động thủ công bằng `mvn spring-boot:run`, hãy chạy một lần `powershell -ExecutionPolicy Bypass -File .\scripts\init-local-db.ps1` **tại thư mục gốc EasyHome**, trước khi chạy backend.
+   - Script cần tìm thấy `C:\xampp\mysql\bin\mysql.exe`; nếu XAMPP ở nơi khác, đặt `$env:XAMPP_HOME='D:\DuongDan\xampp'`.
+   - Database đã tồn tại thì giữ nguyên; Flyway + Hibernate chỉ tiếp tục cập nhật schema trong local dev.
+3. Mở PowerShell ở `backend`:
 
 ```powershell
 mvn clean test
+$env:SPRING_PROFILES_ACTIVE = 'dev'
 mvn spring-boot:run
 ```
 
-Test `MarketplaceFlowTest` Ä‘Ã£ cÃ³ URL H2 in-memory riÃªng nÃªn khÃ´ng cáº§n báº­t XAMPP Ä‘á»ƒ cháº¡y `mvn clean test` (cáº§n dependencies Maven).
+4. PowerShell ở `frontend`: `npm install`, rồi `npm run dev`.
+5. Mở `http://localhost:5173`. OTP email local hiển thị ở console Spring Boot dưới dòng `[EASYHOME DEV EMAIL OTP]`.
 
-Terminal khÃ¡c trong `frontend`:
+**Không sử dụng giấy tờ tùy thân thật hay chuyển tiền thật khi chưa nghiệm thu bảo mật.** Tất cả giao dịch ở profile dev chỉ là mô phỏng.
 
-```powershell
-npm ci
-npm run dev -- --host 0.0.0.0
-```
+Nếu DB khác cổng `3306`, đặt `$env:DB_URL = 'jdbc:mariadb://127.0.0.1:3307/easyhome'` trước khi chạy backend. Nếu root có mật khẩu, đặt `$env:DB_PASSWORD` trong terminal, không ghi password vào file Git.
 
-Website `http://localhost:5173`; API `http://localhost:8081/api/listings`.
-Vite Ä‘Ã£ proxy `/api` Ä‘áº¿n `localhost:8081` trÃªn chÃ­nh mÃ¡y phÃ¡t triá»ƒn.
+**Database đang có dữ liệu:** Flyway tạo bảng bổ sung, còn cột legacy vẫn cập nhật bởi JPA ở chế độ dev. Khuyến nghị chạy trước trên database thử nghiệm riêng. Chưa xác minh migration production và không có đường rollback tự động. Xem `README.md`.
 
-## 3. Xem dá»¯ liá»‡u / ERD
-VÃ o `http://localhost/phpmyadmin`, chá»n database `easyhome`, xem báº£ng vÃ  dá»¯ liá»‡u. Äá»ƒ xem sÆ¡ Ä‘á»“, dÃ¹ng tab `Designer` (phá»¥ thuá»™c phiÃªn báº£n vÃ  cáº¥u hÃ¬nh phpMyAdmin); cÅ©ng cÃ³ thá»ƒ dÃ¹ng DBeaver Community káº¿t ná»‘i MariaDB `127.0.0.1:3306` Ä‘á»ƒ xem ERD dá»… hÆ¡n.
-
-## 4. LÆ°u Ã½
-- File H2 cÅ© (`backend/data/*.mv.db`) **khÃ´ng Ä‘Æ°á»£c nháº­p tá»± Ä‘á»™ng** sang MariaDB; hÃ£y sao lÆ°u náº¿u cáº§n giá»¯ dá»¯ liá»‡u.
-- JPA `ddl-auto=update` sáº½ tá»± táº¡o/cáº­p nháº­t báº£ng khi backend cháº¡y trong mÃ´i trÆ°á»ng local; **khÃ´ng dÃ¹ng cÃ¡ch nÃ y Ä‘á»ƒ quáº£n lÃ½ schema production**.
-- Náº¿u cá»•ng XAMPP khÃ¡c `3306`, Ä‘áº·t `DB_URL=jdbc:mariadb://127.0.0.1:<PORT>/easyhome` trong terminal trÆ°á»›c khi cháº¡y backend.
-- Máº­t kháº©u seed/demo vÃ  mock-payment chá»‰ dÃ¹ng Ä‘á»ƒ thá»­ nghiá»‡m ná»™i bá»™, khÃ´ng má»Ÿ cÃ´ng khai ra Internet.
+## Database tự động: giới hạn quan trọng
+- **Tự tạo database nếu thiếu:** có, khi dùng `start-dev.bat` hoặc chạy script `scripts/init-local-db.ps1` bằng tay.
+- **Tự thêm bảng/cột:** Flyway chạy `V1`/`V2`, Hibernate chạy `ddl-auto=update` trong local dev **khi kết nối thành công**.
+- **Không tự xóa/tái tạo dữ liệu**: không dùng `DROP DATABASE`, `CREATE-DROP`, `DELETE`.
+- **Không tự chữa dữ liệu không tương thích:** trùng số điện thoại cũ, schema cũ có xung đột, giao dịch legacy, dữ liệu H2 cũ vẫn cần kiểm tra/migration riêng.
+- Luôn backup trước khi chạy trên database EasyHome đã có dữ liệu. Chưa có chứng nhận migration production và chưa test tích hợp MariaDB ở môi trường tạo ZIP.

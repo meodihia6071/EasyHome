@@ -1,0 +1,4 @@
+app:
+  mock-payments: true
+  email-mode: console
+  seed-demo: true

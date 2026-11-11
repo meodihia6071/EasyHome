@@ -1,0 +1,19 @@
+import React, { useEffect, useState } from 'react'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import {
+  ArrowLeft, ArrowRight, ArrowUpRight, BadgeCheck, BedDouble, Bookmark, Building2, Check,
+  CheckCircle2, ChevronLeft, ChevronRight, Clock3, CreditCard, FileText, Flag, Heart,
+  House, Inbox, KeyRound, Mail, MapPin, MessageCircle, Pencil, Phone, Plus, RotateCcw,
+  Ruler, Search, Send, ShieldCheck, SlidersHorizontal, Sparkles, Tag, Trash2, UserRound,
+  Wallet, XCircle
+} from 'lucide-react'
+import { api, date, fallbackPhoto, getSession, money, rent, statuses, types } from '../../api.js'
+import { useAuth } from '../../App.jsx'
+import { typeOptions, cityOptions, errorText, Flash, Spinner, Empty, Photo, TagStatus, Header, Card, AuthFrame, blankForm } from '../../components/shared-core.jsx'
+
+export function Checkout(){const {id}=useParams();const navigate=useNavigate();const [plans,setPlans]=useState([]),[listing,setListing]=useState(null),[orders,setOrders]=useState([]),[chosen,setChosen]=useState('STANDARD'),[error,setError]=useState(''),[busy,setBusy]=useState(false),[info,setInfo]=useState('')
+  async function reload(){const [ps,ls,os]=await Promise.all([api('/plans'),api('/my/listings'),api('/my/orders')]);setPlans(ps);setListing(ls.find(l=>String(l.id)===id));setOrders(os.filter(o=>String(o.listingId)===id))}
+  useEffect(()=>{reload().catch(e=>setError(errorText(e)))},[id]);const pending=orders.find(o=>o.status==='PENDING')
+  async function action(fn){setBusy(true);setError('');setInfo('');try{await fn();await reload();setInfo('Đã cập nhật đơn dịch vụ.')}catch(e){setError(errorText(e))}finally{setBusy(false)}}
+  return <div className="container checkout-page"><Link to="/dashboard" className="back-link"><ArrowLeft size={16}/> Quản lý tin</Link><Header eyebrow="DỊCH VỤ HIỂN THỊ" title="Chọn gói đăng tin" description={listing?.title||'Chỉ thanh toán phí quảng bá tin, không thu tiền thuê/cọc.'}/><Flash error={error} success={info}/>{!listing?<Spinner/>:<><div className="pricing-grid">{plans.map(p=><button key={p.code} onClick={()=>setChosen(p.code)} className={'plan-card '+(chosen===p.code?'selected':'')} disabled={Boolean(pending)}><span className="plan-top"><span>{p.code==='VIP'?'NỔI BẬT':p.code==='FREE'?'TRẢI NGHIỆM':'PHỔ BIẾN'}</span>{chosen===p.code&&<CheckCircle2 size={20}/>}</span><h3>{p.name}</h3><strong>{p.price===0?'Miễn phí':money(p.price)}</strong><p>{p.days} ngày hiển thị</p><ul><li><Check size={15}/> Đăng tin sau kiểm duyệt</li><li><Check size={15}/> Theo dõi trạng thái</li>{p.priority>=2&&<li><Sparkles size={15}/> Ưu tiên hiển thị khi sắp xếp mặc định</li>}</ul></button>)}</div><div className="checkout-note"><ShieldCheck size={22}/><p>Đây là môi trường demo. Thanh toán trả phí được xác nhận bằng nút mô phỏng, <strong>không trừ tiền thật</strong>. Luồng thanh toán thật phải tích hợp cổng và xác minh webhook trước khi vận hành thương mại.</p></div><div className="checkout-actions">{pending?<><p>Đơn <strong>{pending.reference}</strong> đang chờ xác nhận ({money(pending.amount)}).</p><button className="button button-outline" disabled={busy} onClick={()=>action(()=>api('/orders/'+pending.id+'/cancel',{method:'POST'}))}>Hủy để đổi gói</button><button className="button button-primary" disabled={busy} onClick={()=>action(()=>api('/dev/orders/'+pending.id+'/confirm',{method:'POST'}))}><CheckCircle2 size={16}/> Mô phỏng thanh toán thành công</button></>:listing.status==='AWAITING_PAYMENT'?<button className="button button-primary" disabled={busy} onClick={()=>action(()=>api('/orders',{method:'POST',body:{listingId:Number(id),plan:chosen}}))}><CreditCard size={17}/> {chosen==='FREE'?'Kích hoạt lượt miễn phí':'Tạo đơn mua gói '+chosen}</button>:<><p>Trạng thái tin: <TagStatus status={listing.status}/></p><Link className="button button-primary" to="/dashboard">Trở về quản lý</Link></>}</div></> }</div>
+}

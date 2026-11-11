@@ -1,3 +1,14 @@
+# CURRENT — EasyHome V2 Phase 1 (12/11/2026)
+
+Đã bắt đầu triển khai bản đặc tả V2 được duyệt. Code mới có trong ZIP này, không tự push GitHub.
+
+- DONE IN SOURCE: email OTP, unique phone, identity doc review, upload public/evidence, reviewed-after-payment, mock payment, demo wallet/withdrawal/refund, account locks, plans in DB, UI and versioned additive migrations.
+- VERIFIED: Java domain rules 198/198 PASS; Java syntax parse 41 files PASS; JSX syntax parse 4 files PASS.
+- PENDING: Maven integration tests, React production build, XAMPP/MariaDB/Flyway startup, end-to-end smoke and security test. See TEST_REPORT.md.
+- DO NOT DEPLOY PRODUCTION or replace a working DB before backup and tests. Existing log below is historical and refers to older MVP versions.
+
+---
+
 # PROGRESS — EasyHome
 
 **Ngày ghi nhận:** 04/11/2026  |  **Nhánh gốc:** dự án mới, chưa push  |  **Giai đoạn:** MVP source + QA offline
@@ -144,8 +155,17 @@ Nguyên tắc: `DONE` = file đã tạo và quy tắc có thể kiểm tra; `TES
 
 > **Lưu ý:** PROGRESS này ghi lại công việc thực tế của phiên tạo source. Những mục PENDING không được tự đổi thành DONE nếu chưa có bằng chứng chạy test.
 
-## 2026-11-11 - Phase A: XAMPP/MariaDB (Ä‘Æ°á»£c ngÆ°á»i dÃ¹ng duyá»‡t)
-- Source chÃ­nh thá»©c: `meodihia6071/EasyHome`, `main` táº¡i commit `29d95e8fffa25ed97566d013876649edc2e81439`.
-- Chá»‰ chuyá»ƒn máº·c Ä‘á»‹nh database local tá»« H2 file sang MariaDB XAMPP; thÃªm JDBC driver; backend `8081`, Vite/Nginx/Docker giá»¯ cáº¥u hÃ¬nh cÅ© Ä‘Ã£ Ä‘Ãºng; thÃªm test-only properties Ä‘á»ƒ `MarketplaceFlowTest` váº«n dÃ¹ng H2 in-memory.
-- KhÃ´ng sá»­a API, entity, business logic hoáº·c UI. TÃ i liá»‡u `README_XAMPP.md` vÃ  `database.sql` Ä‘Æ°á»£c thÃªm má»›i.
-- ÄÃ¢y lÃ  script triá»ƒn khai local. Káº¿t quáº£ Maven/npm Ä‘Æ°á»£c kiá»ƒm tra thá»±c táº¿ trong quÃ¡ trÃ¬nh cháº¡y script, khÃ´ng Ä‘Æ°á»£c suy diá»…n PASS trÆ°á»›c khi cháº¡y.
+## 12/11/2026 — Bàn giao source phương án A từ meodihia6071/EasyHome/main
+
+- Đã đối chiếu blob SHA các file nghiệp vụ Java và React với nhánh `main`; giữ nguyên mã nguồn nghiệp vụ, giao diện và các endpoint.
+- Chuyển database mặc định khi chạy local từ H2 file sang MariaDB XAMPP; giữ MySQL Docker; backend và Vite vốn đã dùng cổng `8081`.
+- Bổ sung MariaDB JDBC Driver, `database.sql`, tài liệu chạy XAMPP UTF-8 và cấu hình test H2 riêng.
+- Không thực hiện thay đổi business logic, schema entity, giá gói, cấu trúc Java/React.
+- Giới hạn bàn giao: môi trường đóng gói không truy cập được npm/GitHub archive trực tiếp; `frontend/package-lock.json` cần giữ từ checkout hiện có hoặc tạo lại bằng `npm install` (nếu thiếu).
+- Kiểm thử có thể thực hiện tại môi trường đóng gói được ghi ở `TEST_REPORT.md`; không tự đánh dấu Maven, frontend build hoặc MariaDB thật là PASS.
+
+
+## 12/11/2026 – Tách lớp và thư mục source
+- Xem `ARCHITECTURE.md`. Chuyển code từ package phẳng thành cấu trúc Spring Boot theo lớp, và tách React pages theo chức năng.
+- Giữ tên file hiện có và các URL API; chỉ di chuyển file, tách class cùng file và cập nhật import/visibility cần thiết.
+- Đã kiểm tra cú pháp và chạy 198 domain checks. Maven/npm/XAMPP runtime còn chờ nghiệm thu.

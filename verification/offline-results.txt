@@ -1,26 +1,7 @@
-EasyHome offline QA -- 2026-11-04
-Java compiler: 
-openjdk version "21.0.12.1" 2026-08-18
-OpenJDK Runtime Environment (build 21.0.12.1+1-1-deb13u1-Debian)
-OpenJDK 64-Bit Server VM (build 21.0.12.1+1-1-deb13u1-Debian, mixed mode, sharing)
-
-Core regression run 1:
-PASS: 177 business rule checks
-Core regression run 2:
-PASS: 177 business rule checks
-Core regression run 3:
-PASS: 177 business rule checks
-
-Frontend parser check (syntax only, not build):
-PASS syntax src/App.jsx
-PASS syntax src/pages.jsx
-PASS syntax src/main.jsx
-PASS syntax src/api.js
-PASS syntax vite.config.js
-
-Hotfix 2026-11-05 (Windows MockMvc failures, Hibernate LAZY access):
-Source review: replaced direct field access via LAZY proxies in API and DTO code.
-Core business rules: PASS 177/177 (Java 21, javac -Xlint:all -Werror)
-Java parsing with JDK compiler --release 21: PASS (20 .java files, 0 syntax errors)
-5 MockMvc integration tests: PENDING real Maven rerun (3 earlier tests FAILED on unpatched source)
-Maven command on Windows: cd backend && mvn clean test
+EasyHome V2 Phase 1 — 12/11/2026
+bash scripts/test-core.sh
+PASS: 198 business rule checks
+JavacTask JDK 21 parse: 41 .java files, 0 syntax errors
+TypeScript JSX/JS transpiler: frontend/src/App.jsx, pages.jsx, phase1.jsx, api.js — OK
+Maven/JUnit and npm build: NOT RUN (dependencies unavailable)
+MariaDB integration: NOT RUN
