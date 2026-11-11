@@ -95,3 +95,8 @@ File `backend/src/test/java/com/easyhome/MarketplaceFlowTest.java` gồm:
 5. Sau mỗi sửa lỗi, chạy lại core tests + integration + E2E trọng yếu, tránh hồi quy.
 
 **Tiêu chí phát hành MVP:** CI xanh, quy trình đăng tin từ đầu đến cuối qua browser không lỗi, phân quyền được kiểm chứng, test đồng thời thanh toán miễn phí, Docker/MySQL dữ liệu bền vững. Trước đó chỉ coi đây là **bản source phát triển**.
+
+## 2026-11-11 - Kiá»ƒm tra Phase A XAMPP/MariaDB
+- Cáº§n cháº¡y `mvn clean test` Ä‘á»ƒ kiá»ƒm tra `MarketplaceFlowTest` trÃªn H2 (driver Ä‘Æ°á»£c ghi Ä‘Ã¨ trong `src/test/resources/application.properties`), `npm ci` vÃ  `npm run build` cho frontend.
+- Cáº§n cháº¡y backend vá»›i XAMPP MariaDB Ä‘Ã£ báº­t Ä‘á»ƒ xÃ¡c nháº­n káº¿t ná»‘i JDBC, khá»Ÿi táº¡o schema vÃ  cÃ¡c quy trÃ¬nh API.
+- LÆ°u Ã½: Maven H2 PASS khÃ´ng Ä‘á»“ng nghÄ©a Ä‘Ã£ cháº¡y thá»­ Ä‘Æ°á»£c MariaDB tháº­t; káº¿t ná»‘i database local lÃ  bÆ°á»›c nghiá»‡m thu riÃªng.

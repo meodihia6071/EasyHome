@@ -143,3 +143,9 @@ Nguyên tắc: `DONE` = file đã tạo và quy tắc có thể kiểm tra; `TES
 4. Chỉ khi đã ổn định mới bổ sung payment sandbox, migrations và upload ảnh. Không tự ý đưa thêm tính năng ngoài quy trình chính.
 
 > **Lưu ý:** PROGRESS này ghi lại công việc thực tế của phiên tạo source. Những mục PENDING không được tự đổi thành DONE nếu chưa có bằng chứng chạy test.
+
+## 2026-11-11 - Phase A: XAMPP/MariaDB (Ä‘Æ°á»£c ngÆ°á»i dÃ¹ng duyá»‡t)
+- Source chÃ­nh thá»©c: `meodihia6071/EasyHome`, `main` táº¡i commit `29d95e8fffa25ed97566d013876649edc2e81439`.
+- Chá»‰ chuyá»ƒn máº·c Ä‘á»‹nh database local tá»« H2 file sang MariaDB XAMPP; thÃªm JDBC driver; backend `8081`, Vite/Nginx/Docker giá»¯ cáº¥u hÃ¬nh cÅ© Ä‘Ã£ Ä‘Ãºng; thÃªm test-only properties Ä‘á»ƒ `MarketplaceFlowTest` váº«n dÃ¹ng H2 in-memory.
+- KhÃ´ng sá»­a API, entity, business logic hoáº·c UI. TÃ i liá»‡u `README_XAMPP.md` vÃ  `database.sql` Ä‘Æ°á»£c thÃªm má»›i.
+- ÄÃ¢y lÃ  script triá»ƒn khai local. Káº¿t quáº£ Maven/npm Ä‘Æ°á»£c kiá»ƒm tra thá»±c táº¿ trong quÃ¡ trÃ¬nh cháº¡y script, khÃ´ng Ä‘Æ°á»£c suy diá»…n PASS trÆ°á»›c khi cháº¡y.
