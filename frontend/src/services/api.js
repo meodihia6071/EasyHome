@@ -22,6 +22,7 @@ export async function api(path, options = {}) {
   if (raw) { try { result = JSON.parse(raw) } catch { result = null } }
   if (!res.ok) {
     if(result?.code==='ACCOUNT_LOCKED')reportSessionIssue(result)
+    else if(result?.code==='IDENTITY_REQUIRED')reportSessionIssue(result)
     else if(res.status===401&&token)reportSessionIssue({code:'SESSION_EXPIRED',message:'Phiên đăng nhập đã hết hạn.'})
     const error=new Error(result?.message || result?.detail || (res.status === 401 ? 'Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại.' : `Yêu cầu thất bại (${res.status}).`))
     error.code=result?.code;error.details=result;throw error

@@ -135,21 +135,48 @@ class MarketplaceFlowTest {
     assertEquals("ACTIVE",action("/api/admin/listings/"+id+"/approve",moderator).path("status").asText());
     mvc.perform(get("/api/listings/"+id)).andExpect(status().isOk()).andExpect(jsonPath("$.plan").value("VIP_GOLD"));
   }
-  @Test void rejectReturnsMockMoneyExactlyOnce()throws Exception{
-    String owner=login("owner@easyhome.vn","Owner@12345"),moderator=mod();
+  @Test void identityNeedsUpdateIsVisibleAndPresentInAdminAudit()throws Exception{
+    String owner=registerAndVerify(),admin=admin();long id=action("/api/identity/start",owner).path("id").asLong();
+    for(int i=0;i<2;i++)mvc.perform(multipart("/api/identity/"+id+"/upload").file(new MockMultipartFile("file","card.png","image/png",PNG))
+      .header("Authorization","Bearer "+owner)).andExpect(status().isOk());
+    action("/api/identity/"+id+"/submit",owner);
+    postJson("/api/admin/identity/"+id+"/review",admin,Map.of("decision","NEEDS_UPDATE","note","Ảnh mặt sau chưa đủ rõ, vui lòng chụp lại"));
+    mvc.perform(get("/api/identity/me").header("Authorization","Bearer "+owner)).andExpect(status().isOk())
+      .andExpect(jsonPath("$.status").value("NEEDS_UPDATE")).andExpect(jsonPath("$.note").value("Ảnh mặt sau chưa đủ rõ, vui lòng chụp lại"));
+    mvc.perform(get("/api/admin/audit").header("Authorization","Bearer "+admin)).andExpect(status().isOk())
+      .andExpect(jsonPath("$[?(@.action=='IDENTITY_NEEDS_UPDATE' && @.target=='identity:"+id+"')]").isNotEmpty());
+  }
+  @Test void rejectRefundsApprovedWalletPaymentExactlyOnce()throws Exception{
+    String owner=login("owner@easyhome.vn","Owner@12345"),moderator=mod(),admin=admin();
+    mvc.perform(get("/api/wallet").header("Authorization","Bearer "+owner)).andExpect(status().isOk());
+    WalletAccount testWallet=wallets.findByUser_Id(users.findByEmailIgnoreCase("owner@easyhome.vn").orElseThrow().id).orElseThrow();
+    testWallet.availableBalance=0;wallets.saveAndFlush(testWallet);
     long id=prepare(owner),order=order(owner,id,"STANDARD");
     assertEquals(ListingStatus.AWAITING_PAYMENT,listings.findById(id).orElseThrow().getStatus());
-    action("/api/dev/orders/"+order+"/confirm",owner);
+    JsonNode deposit=postJson("/api/wallet/deposits",owner,Map.of("amount",29000));
+    postJson("/api/wallet/deposits/"+deposit.path("id").asLong()+"/submitted",owner,Map.of());
+    postJson("/api/admin/wallet/deposits/"+deposit.path("id").asLong()+"/approve",admin,Map.of());
+    action("/api/orders/"+order+"/wallet-pay",owner);
     action("/api/my/listings/"+id+"/submit",owner);
     var rejected=postJson("/api/admin/listings/"+id+"/reject",moderator,Map.of("note","Ảnh minh chứng chưa chứng minh hiện trạng cho thuê"));
     assertEquals("REJECTED",rejected.path("status").asText());
     var bal=mvc.perform(get("/api/wallet").header("Authorization","Bearer "+owner)).andExpect(status().isOk()).andReturn();
-    assertEquals(29000,parse(bal.getResponse().getContentAsString()).path("demoAvailable").asInt());
+    assertEquals(29000,parse(bal.getResponse().getContentAsString()).path("available").asInt());
     mvc.perform(post("/api/admin/listings/"+id+"/reject").header("Authorization","Bearer "+moderator)
       .contentType(MediaType.APPLICATION_JSON).content(body(Map.of("note","Thử lặp lại yêu cầu từ chối"))))
       .andExpect(status().isBadRequest());
     var again=mvc.perform(get("/api/wallet").header("Authorization","Bearer "+owner)).andExpect(status().isOk()).andReturn();
-    assertEquals(29000,parse(again.getResponse().getContentAsString()).path("demoAvailable").asInt());
+    assertEquals(29000,parse(again.getResponse().getContentAsString()).path("available").asInt());
+  }
+  @Test void rejectingLegacyMockPaymentDoesNotCreateWithdrawableFunds()throws Exception{
+    String owner=login("owner@easyhome.vn","Owner@12345"),moderator=mod();
+    mvc.perform(get("/api/wallet").header("Authorization","Bearer "+owner)).andExpect(status().isOk());
+    WalletAccount account=wallets.findByUser_Id(users.findByEmailIgnoreCase("owner@easyhome.vn").orElseThrow().id).orElseThrow();
+    account.availableBalance=0;wallets.saveAndFlush(account);
+    long id=prepare(owner),order=order(owner,id,"STANDARD");
+    action("/api/dev/orders/"+order+"/confirm",owner);action("/api/my/listings/"+id+"/submit",owner);
+    postJson("/api/admin/listings/"+id+"/reject",moderator,Map.of("note","Từ chối khoản thanh toán giả lập cũ"));
+    assertEquals(0,parse(mvc.perform(get("/api/wallet").header("Authorization","Bearer "+owner)).andReturn().getResponse().getContentAsString()).path("available").asInt());
   }
   @Test void freeOnceAfterActualApproval()throws Exception{
     String owner=login("owner@easyhome.vn","Owner@12345"),moderator=mod();
@@ -213,14 +240,44 @@ class MarketplaceFlowTest {
       .header("Authorization","Bearer "+owner)).andExpect(status().isForbidden());
     assertEquals(ListingStatus.PENDING_REVIEW,listings.findById(id).orElseThrow().getStatus());
   }
-  @Test void demoWalletTopupProducesLedgerEntry()throws Exception{
+  @Test void mockTopupDoesNotExposeDemoLedgerEntry()throws Exception{
     String user=registerAndVerify();
     postJson("/api/dev/wallet/topup",user,Map.of("amount",32000));
     var r=mvc.perform(get("/api/wallet").header("Authorization","Bearer "+user))
       .andExpect(status().isOk()).andReturn();
-    assertEquals(32000,parse(r.getResponse().getContentAsString()).path("demoAvailable").asInt());
+    assertEquals(32000,parse(r.getResponse().getContentAsString()).path("available").asInt());
     mvc.perform(get("/api/wallet/ledger").header("Authorization","Bearer "+user))
-      .andExpect(status().isOk()).andExpect(jsonPath("$[0].action").value("DEMO_TOPUP"));
+      .andExpect(status().isOk()).andExpect(jsonPath("$").isEmpty());
+  }
+
+  @SuppressWarnings("deprecation")
+  @Test void VietQrDepositAndWithdrawalChangeBalanceOnlyAfterAdminDecision()throws Exception{
+    String unique=UUID.randomUUID().toString().replace("-","");String email="wallet"+unique+"@example.com";
+    ByteArrayOutputStream output=new ByteArrayOutputStream();PrintStream previous=System.out;
+    try{System.setOut(new PrintStream(output,true,StandardCharsets.UTF_8));
+      mvc.perform(post("/api/auth/register").contentType(MediaType.APPLICATION_JSON).content(body(Map.of("fullName","Wallet Test","email",email,"phone","09"+String.format("%08d",Math.floorMod(unique.hashCode(),100_000_000)),"password","Test@12345")))).andExpect(status().isOk());
+      Matcher otp=Pattern.compile("=> (\\d{6})").matcher(output.toString(StandardCharsets.UTF_8));assertTrue(otp.find());
+      mvc.perform(post("/api/auth/verify-email").contentType(MediaType.APPLICATION_JSON).content(body(Map.of("email",email,"code",otp.group(1))))).andExpect(status().isOk());
+    }finally{System.setOut(previous);}
+    User walletUser=users.findByEmailIgnoreCase(email).orElseThrow();walletUser.setIdentityStatus(IdentityStatus.VERIFIED);users.saveAndFlush(walletUser);
+    String owner=login(email,"Test@12345"),admin=admin();
+    mvc.perform(get("/api/wallet").header("Authorization","Bearer "+owner)).andExpect(status().isOk());
+    WalletAccount legacy=wallets.findByUser_Id(walletUser.id).orElseThrow();legacy.demoBalance=90000;wallets.saveAndFlush(legacy);
+    assertEquals(0,parse(mvc.perform(get("/api/wallet").header("Authorization","Bearer "+owner)).andReturn().getResponse().getContentAsString()).path("available").asInt());
+    JsonNode deposit=postJson("/api/wallet/deposits",owner,Map.of("amount",50000));long depositId=deposit.path("id").asLong();
+    assertEquals("PENDING",deposit.path("status").asText());
+    assertEquals(0,parse(mvc.perform(get("/api/wallet").header("Authorization","Bearer "+owner)).andReturn().getResponse().getContentAsString()).path("available").asInt());
+    mvc.perform(get("/api/admin/wallet/deposits").header("Authorization","Bearer "+admin)).andExpect(status().isOk()).andExpect(jsonPath("$").isEmpty());
+    postJson("/api/wallet/deposits/"+depositId+"/submitted",owner,Map.of());
+    mvc.perform(get("/api/admin/wallet/deposits").header("Authorization","Bearer "+admin)).andExpect(status().isOk()).andExpect(jsonPath("$[0].id").value(depositId));
+    postJson("/api/admin/wallet/deposits/"+depositId+"/approve",admin,Map.of());
+    mvc.perform(post("/api/admin/wallet/deposits/"+depositId+"/approve").header("Authorization","Bearer "+admin)).andExpect(status().isBadRequest());
+    assertEquals(50000,parse(mvc.perform(get("/api/wallet").header("Authorization","Bearer "+owner)).andReturn().getResponse().getContentAsString()).path("available").asInt());
+    JsonNode withdrawal=postJson("/api/wallet/withdrawals",owner,Map.of("amount",20000,"bankName","MB Bank","accountNumber","0919098606","accountHolder","NGUYEN HA KHOA"));
+    assertEquals("PENDING",withdrawal.path("status").asText());
+    assertEquals(50000,parse(mvc.perform(get("/api/wallet").header("Authorization","Bearer "+owner)).andReturn().getResponse().getContentAsString()).path("available").asInt());
+    postJson("/api/finance/withdrawals/"+withdrawal.path("id").asLong()+"/decision",admin,Map.of("action","APPROVE","reason","Admin đã xác nhận chuyển khoản"));
+    assertEquals(30000,parse(mvc.perform(get("/api/wallet").header("Authorization","Bearer "+owner)).andReturn().getResponse().getContentAsString()).path("available").asInt());
   }
 
   @Test void publisherTypeBelongsToListingAndActiveLocationsAreSuggested()throws Exception{

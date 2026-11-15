@@ -30,3 +30,7 @@ h1,h2,h3,h4{font-family:Manrope,'Be Vietnam Pro',sans-serif}
 @media(max-width:900px){.search-bar{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0}.search-keyword{grid-column:1/-1}.search-price{min-width:0}.search-field:nth-child(2){border-right:0}.search-field:nth-child(3){border-right:1px solid #e7eeea}.search-field:nth-child(4){border-right:0}.filter-hint{justify-content:flex-start}}
 @media(max-width:520px){.search-bar{grid-template-columns:1fr}.search-keyword{grid-column:auto}.search-field{border-right:0!important;border-bottom:1px solid #e7eeea;padding:12px 9px}.search-field:last-child{border-bottom:0}.search-price{min-width:0}.filter-hint{font-size:10px}.session-dialog{padding:24px}}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;transition-duration:.01ms!important}}
+.favorite-active{color:#d82445!important;border-color:#d82445!important}
+.private-image-preview,.upload-preview{display:block;width:128px;height:96px;object-fit:cover;border-radius:10px;border:1px solid #d8e1e4;margin:8px 0}
+.file-picker-small{font-size:.86rem;max-width:280px;padding:7px}
+.deposit-qr{margin-top:16px;text-align:center}.deposit-qr img{width:min(280px,100%);height:auto}

@@ -26,9 +26,9 @@ public class WalletService {
   }
   public void move(WalletAccount w,long delta,String action,String ref){
     if(ledger.existsByReference(ref))return; // same operation must not mutate twice
-    RulesV2.require(delta<=0 || Long.MAX_VALUE-w.demoBalance>=delta,"Số dư vượt giới hạn");
-    RulesV2.require(delta>=0 || w.demoBalance>=-delta,"Số dư mô phỏng không đủ");
-    w.demoBalance=Math.addExact(w.demoBalance,delta);
+    RulesV2.require(delta<=0 || Long.MAX_VALUE-w.availableBalance>=delta,"Số dư vượt giới hạn");
+    RulesV2.require(delta>=0 || w.availableBalance>=-delta,"Số dư khả dụng không đủ");
+    w.availableBalance=Math.addExact(w.availableBalance,delta);
     WalletLedger e=new WalletLedger();e.wallet=w;e.delta=delta;e.action=action;e.reference=ref;ledger.save(e);
     wallets.saveAndFlush(w);
   }

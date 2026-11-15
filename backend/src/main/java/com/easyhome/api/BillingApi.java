@@ -71,15 +71,15 @@ public class BillingApi {
   }
   @PostMapping("/api/orders/{id}/wallet-pay") @Transactional
   public OrderView payWallet(@AuthenticationPrincipal Jwt jwt,@PathVariable Long id){
-    requireDemo();User u=identity.current(jwt);ServiceOrder snapshot=orders.findById(id).orElseThrow();
+    User u=identity.current(jwt);ServiceOrder snapshot=orders.findById(id).orElseThrow();
     if(!snapshot.buyer.getId().equals(u.id))throw new ResponseStatusException(HttpStatus.FORBIDDEN);
     Listing l=listings.locked(snapshot.listing.getId()).orElseThrow();ServiceOrder o=orders.locked(id).orElseThrow();
     if(o.status==PaymentStatus.PAID)return OrderView.from(o);
     RulesV2.require(o.status==PaymentStatus.PENDING&&l.getStatus()==ListingStatus.AWAITING_PAYMENT,"Đơn không được thanh toán");
     WalletAccount w=wallet.locked(u);wallet.move(w,-o.priceSnapshot,"BUY_LISTING","purchase:order:"+o.id);
-    markPaid(o,"DEMO_WALLET");
+    markPaid(o,"WALLET");
     PaymentTransaction t=new PaymentTransaction();t.order=o;t.payer=u;t.amount=o.priceSnapshot;
-    t.method="DEMO_WALLET";t.status="PAID";t.confirmedAt=Instant.now();t.reference="wallet:order:"+o.id;payments.save(t);
+    t.method="WALLET";t.status="PAID";t.confirmedAt=Instant.now();t.reference="wallet:order:"+o.id;payments.save(t);
     return OrderView.from(o);
   }
   @PostMapping("/api/dev/orders/{id}/confirm") @Transactional
@@ -109,7 +109,7 @@ public class BillingApi {
   public void refund(ServiceOrder o){
     if(o.status==PaymentStatus.REFUNDED)return;
     RulesV2.require(o.status==PaymentStatus.PAID,"Chưa thanh toán, không được hoàn tiền");
-    if(o.priceSnapshot>0)wallet.refund(o.buyer,o.priceSnapshot,o.id);
+    if(o.priceSnapshot>0&&!Set.of("DEMO_QR","DEMO_WALLET").contains(o.paymentMethod))wallet.refund(o.buyer,o.priceSnapshot,o.id);
     o.status=PaymentStatus.REFUNDED;o.refundedAt=Instant.now();orders.saveAndFlush(o);
     audits.save(new Audit(o.buyer.getId(),"REFUND_REJECTION","order:"+o.id));
   }

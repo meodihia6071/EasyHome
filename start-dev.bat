@@ -1,12 +1,15 @@
 @echo off
 chcp 65001 >nul
+if exist "%~dp0.env" (
+  for /f "usebackq eol=# tokens=1,* delims==" %%A in ("%~dp0.env") do if not "%%A"=="" set "%%A=%%B"
+)
 where java >nul 2>nul || (echo [ERROR] Can cai Java 21. & pause & exit /b 1)
 where mvn >nul 2>nul || (echo [ERROR] Can cai Apache Maven 3.9+ va them vao PATH. & pause & exit /b 1)
 where npm >nul 2>nul || (echo [ERROR] Can cai Node.js 22+ va npm. & pause & exit /b 1)
 echo Checking/creating local MariaDB database (non-destructive)...
 powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\init-local-db.ps1"
 if errorlevel 1 (echo [ERROR] Database setup failed, backend/frontend not started. & pause & exit /b 1)
-echo Khoi dong EasyHome (dev, XAMPP MariaDB, mock payment)...
+echo Khoi dong EasyHome (dev, XAMPP MariaDB, SMTP)...
 start "EasyHome Backend 8081" /D "%~dp0backend" cmd /k "mvn spring-boot:run -Dspring-boot.run.profiles=dev"
 start "EasyHome Frontend 5173" /D "%~dp0frontend" cmd /k "npm install && npm run dev"
 echo Frontend: http://localhost:5173

@@ -3,6 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom'
 import { ArrowRight, BedDouble, CheckCircle2, ChevronLeft, ChevronRight, House, MapPin, MessageCircle, Search, ShieldCheck, SlidersHorizontal } from 'lucide-react'
 import { api } from '../../api.js'
 import { typeOptions, cityOptions, errorText, Flash, Spinner, Empty, Card } from '../../components/shared-core.jsx'
+import administrativeDivisions from '../../data/vietnam-administrative-divisions.json'
 
 const priceOptions=[['','Không giới hạn'],['1000000','1 triệu'],['3000000','3 triệu'],['5000000','5 triệu'],['8000000','8 triệu'],['12000000','12 triệu'],['20000000','20 triệu'],['30000000','30 triệu']]
 
@@ -11,7 +12,7 @@ export function Explore() {
   const [query,setQuery]=useState(params.get('q')||''),[locations,setLocations]=useState({cities:[],districts:[]})
   const [result,setResult]=useState(null),[error,setError]=useState('')
   const city=params.get('city')||'',type=params.get('type')||'',minPrice=params.get('minPrice')||'',maxPrice=params.get('maxPrice')||'',sort=params.get('sort')||'newest',page=Number(params.get('page')||0)
-  const suggestions=[...new Set([...cityOptions,...locations.cities,...locations.districts])]
+  const suggestions=[...new Set([...administrativeDivisions.data.map(p=>p.name.local),...cityOptions,...locations.cities,...locations.districts])]
 
   useEffect(()=>{api('/listings/locations',{token:null}).then(setLocations).catch(()=>{})},[])
   useEffect(()=>{setQuery(params.get('q')||'')},[params])
@@ -34,7 +35,7 @@ export function Explore() {
   return <>
     <section className="hero"><div className="hero-backdrop"/><div className="container hero-inner"><div className="hero-copy"><div className="hero-kicker"><span className="green-dot"/> KHÔNG GIAN MỚI, KHỞI ĐẦU MỚI</div><h1>Tìm đúng nhà.<br/><em>Sống đúng chất.</em></h1><p>Khám phá căn hộ, phòng trọ và nhà nguyên căn được đăng tải minh bạch. Kết nối trực tiếp với người cho thuê, không mất phí tìm kiếm.</p><div className="hero-highlights"><span><CheckCircle2 size={16}/> Tìm thuê miễn phí</span><span><ShieldCheck size={16}/> Tin được kiểm duyệt</span></div></div></div></section>
     <div className="container search-float"><form className="search-bar" onSubmit={e=>e.preventDefault()}>
-      <div className="search-field search-keyword"><label htmlFor="home-search">Tìm nơi bạn muốn sống</label><div><Search size={19}/><input id="home-search" list="location-suggestions" value={query} onChange={e=>setQuery(e.target.value)} placeholder="Gõ Hà Nội, Hải Phòng, quận…" autoComplete="off"/><datalist id="location-suggestions">{suggestions.map(value=><option value={value} key={value}/>)}</datalist></div></div>
+      <div className="search-field search-keyword"><label htmlFor="home-search">Tìm nơi bạn muốn sống</label><div><Search size={19}/><input id="home-search" value={query} onChange={e=>setQuery(e.target.value)} placeholder="Gõ từ khóa, tên đường, tỉnh thành…" autoComplete="off"/></div></div>
       <div className="search-field"><label htmlFor="city-filter">Khu vực</label><input id="city-filter" list="city-suggestions" value={city} onChange={e=>update({city:e.target.value})} placeholder="Toàn quốc" autoComplete="off"/><datalist id="city-suggestions">{suggestions.map(value=><option value={value} key={value}/>)}</datalist></div>
       <div className="search-field"><label htmlFor="type-filter">Loại hình</label><select id="type-filter" value={type} onChange={e=>update({type:e.target.value})}><option value="">Tất cả</option>{typeOptions.map(([key,label])=><option value={key} key={key}>{label}</option>)}</select></div>
       <div className="search-field search-price"><label>Khoảng giá / tháng</label><div className="price-range"><select aria-label="Giá tối thiểu" value={minPrice} onChange={e=>updateMin(e.target.value)}>{priceOptions.map(([value,label])=><option value={value} key={'min'+value}>{value?'Từ '+label:label}</option>)}</select><span>—</span><select aria-label="Giá tối đa" value={maxPrice} onChange={e=>updateMax(e.target.value)}>{priceOptions.map(([value,label])=><option value={value} key={'max'+value}>{value?'Đến '+label:label}</option>)}</select></div></div>

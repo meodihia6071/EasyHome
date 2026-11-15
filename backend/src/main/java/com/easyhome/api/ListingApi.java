@@ -45,10 +45,13 @@ public class ListingApi {
     p.updateDetails(f.city().trim(),f.district().trim(),f.address().trim(),f.type(),f.monthlyRent(),
       f.area(),f.bedrooms(),f.imageUrl()==null?"":f.imageUrl().trim());l.title=f.title().trim();l.description=f.description().trim();
   }
-  public record Locations(List<String> cities,List<String> districts){}
+  public record Locations(List<String> cities,List<String> districts,List<String> streets){}
   @GetMapping("/api/listings/locations") @Transactional(readOnly=true)
-  public Locations locations(){return new Locations(listings.findActiveCities(ListingStatus.ACTIVE,Availability.AVAILABLE,Instant.now()),
-      listings.findActiveDistricts(ListingStatus.ACTIVE,Availability.AVAILABLE,Instant.now()));}
+  public Locations locations(@RequestParam(required=false) String city,@RequestParam(required=false) String district){
+    Instant now=Instant.now();List<String> streets=city==null||district==null?List.of():listings.findActiveAddresses(ListingStatus.ACTIVE,Availability.AVAILABLE,now,city,district);
+    return new Locations(listings.findActiveCities(ListingStatus.ACTIVE,Availability.AVAILABLE,now),
+      listings.findActiveDistricts(ListingStatus.ACTIVE,Availability.AVAILABLE,now),streets);
+  }
   @GetMapping("/api/listings") @Transactional(readOnly=true)
   public Page<View> browse(@RequestParam(required=false) String q,@RequestParam(required=false) String city,
        @RequestParam(required=false) String type,@RequestParam(required=false) BigDecimal minPrice,

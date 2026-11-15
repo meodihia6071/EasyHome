@@ -16,4 +16,8 @@ import org.springframework.data.domain.*;
 
 public interface Payments extends JpaRepository<PaymentTransaction,Long> {
   Optional<PaymentTransaction> findByReference(String reference);
+  List<PaymentTransaction> findByMethodAndStatusOrderByCreatedAtAsc(String method,String status);
+  List<PaymentTransaction> findByPayer_IdAndMethodOrderByCreatedAtDesc(Long userId,String method);
+  @Lock(LockModeType.PESSIMISTIC_WRITE) @Query("select p from PaymentTransaction p where p.id=:id")
+  Optional<PaymentTransaction> locked(@Param("id") Long id);
 }

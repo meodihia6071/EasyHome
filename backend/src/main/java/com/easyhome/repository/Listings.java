@@ -23,6 +23,8 @@ public interface Listings extends JpaRepository<Listing,Long>,JpaSpecificationEx
   List<String> findActiveCities(@Param("status") ListingStatus status,@Param("availability") Availability availability,@Param("now") Instant now);
   @Query("select distinct p.district from Listing l join l.property p where l.status=:status and l.expiresAt>:now and p.availability=:availability order by p.district")
   List<String> findActiveDistricts(@Param("status") ListingStatus status,@Param("availability") Availability availability,@Param("now") Instant now);
+  @Query("select distinct p.address from Listing l join l.property p where l.status=:status and l.expiresAt>:now and p.availability=:availability and p.city=:city and p.district=:district and p.address<>'' order by p.address")
+  List<String> findActiveAddresses(@Param("status") ListingStatus status,@Param("availability") Availability availability,@Param("now") Instant now,@Param("city") String city,@Param("district") String district);
   boolean existsByProperty_IdAndStatusIn(Long propertyId, Collection<ListingStatus> statuses);
   @Lock(LockModeType.PESSIMISTIC_WRITE) @Query("select l from Listing l where l.id=:id") Optional<Listing> locked(@Param("id") Long id);
 }

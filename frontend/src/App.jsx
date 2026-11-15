@@ -14,9 +14,11 @@ function Protected({ children, roles }) {
   if (roles && !roles.includes(session.user.role)) return <NotFound/>
   return children
 }
+function AccountDetails(){const {session}=useAuth();return <section className="container phase-page"><h1>Tài khoản của tôi</h1><div className="phase-card"><p><strong>Họ tên:</strong> {session.user.name}</p><p><strong>Email:</strong> {session.user.email}</p><p><strong>Số điện thoại:</strong> {session.user.phone}</p><p><strong>Vai trò:</strong> {session.user.role}</p><p><strong>Xác thực danh tính:</strong> {session.user.identityStatus|| (session.user.verified?'Đã xác thực':'Chưa xác thực')}</p><Link className="button button-outline" to="/identity">Quản lý xác thực</Link></div></section>}
 function Shell() {
   const { session, logout } = useAuth()
   const [menu, setMenu] = useState(false)
+  const [balance,setBalance]=useState(null)
   const navigate = useNavigate()
   useEffect(()=>{
     const returnToLogin=e=>{if(e.detail?.code==='ACCOUNT_LOCKED'||e.detail?.code==='SESSION_EXPIRED')navigate('/login',{replace:true})}
@@ -24,6 +26,7 @@ function Shell() {
     return()=>window.removeEventListener('easyhome:session-issue',returnToLogin)
   },[navigate])
   const role = session?.user?.role
+  useEffect(()=>{if(!session?.token){setBalance(null);return}let active=true;const refresh=()=>api('/wallet').then(w=>{if(active)setBalance(w.available)}).catch(()=>{});refresh();const timer=setInterval(refresh,15000);return()=>{active=false;clearInterval(timer)}},[session?.token])
   const end = () => { logout(); navigate('/'); setMenu(false) }
   const hide = () => setMenu(false)
   return <div className="app-shell">
@@ -37,12 +40,12 @@ function Shell() {
         {session && <NavLink onClick={hide} to="/inbox">Khách quan tâm</NavLink>}
         {['ADMIN','MODERATOR','SUPER_ADMIN'].includes(role) && <NavLink onClick={hide} to="/moderation">Kiểm duyệt</NavLink>}
         {session && <NavLink onClick={hide} to="/orders">Đơn dịch vụ</NavLink>}
-        {session && <NavLink onClick={hide} to="/identity">Xác thực</NavLink>}
-        {session && <NavLink onClick={hide} to="/wallet">Số dư DEMO</NavLink>}
+        {session && !['ADMIN','SUPER_ADMIN'].includes(role) && <NavLink onClick={hide} to="/identity">Xác thực</NavLink>}
+        {session && <NavLink onClick={hide} to="/wallet">Số dư {balance===null?'':Number(balance).toLocaleString('vi-VN')+' đ'}</NavLink>}
         {['ADMIN','FINANCE','SUPER_ADMIN'].includes(role) && <NavLink onClick={hide} to="/staff">Vận hành</NavLink>}
       </nav>
       <div className="header-actions">
-        {session ? <><div className="user-pill"><UserRound size={16}/><span>{session.user.name?.split(' ').at(-1)}</span></div><button title="Đăng xuất" className="icon-button logout" onClick={end}><LogOut size={18}/></button></> : <Link className="login-link" to="/login">Đăng nhập</Link>}
+        {session ? <><Link className="user-pill" to="/account" title="Xem tài khoản"><UserRound size={16}/><span>{session.user.name?.split(' ').at(-1)}</span></Link><button title="Đăng xuất" className="icon-button logout" onClick={end}><LogOut size={18}/></button></> : <Link className="login-link" to="/login">Đăng nhập</Link>}
         <Link className="button button-primary header-post" to={session?'/new':'/login?next=%2Fnew'}><Plus size={17}/> Đăng tin</Link>
         <button aria-label="Mở menu" className="icon-button mobile-menu" onClick={()=>setMenu(!menu)}><Menu size={23}/></button>
       </div>
@@ -51,6 +54,7 @@ function Shell() {
       <Route path="/" element={<Explore/>}/>
       <Route path="/listing/:id" element={<Detail/>}/>
       <Route path="/login" element={<SignIn/>}/>
+      <Route path="/account" element={<Protected><AccountDetails/></Protected>}/>
       <Route path="/register" element={<SignUp/>}/>
       <Route path="/forgot-password" element={<ForgotPassword/>}/>
       <Route path="/reset-password" element={<ResetPassword/>}/>
@@ -70,16 +74,17 @@ function Shell() {
       <Route path="/moderation" element={<Protected roles={['ADMIN','MODERATOR','SUPER_ADMIN']}><Moderation/></Protected>}/>
       <Route path="*" element={<NotFound/>}/>
     </Routes></main>
-    <footer className="footer"><div className="container footer-grid"><div><Link className="brand brand-footer" to="/"><span className="brand-mark"><House size={20}/></span><span>easy<span>home</span></span></Link><p>Giúp bạn tìm được không gian phù hợp, đơn giản và minh bạch hơn mỗi ngày.</p></div><div><strong>Khám phá</strong><Link to="/">Tất cả tin đăng</Link><Link to="/saved">Tin đã lưu</Link><Link to="/new">Đăng nhà cho thuê</Link></div><div><strong>Về EasyHome</strong><p>Nền tảng đăng tin kết nối bên cho thuê và người tìm thuê. Hai bên tự thỏa thuận giao dịch; EasyHome không nhận tiền cọc hay tiền thuê nhà.</p></div></div><div className="container footer-bottom"><span>© 2026 EasyHome · Phase 1</span><span>Phân hệ tài chính đang ở chế độ mô phỏng, không thu tiền thật.</span></div></footer>
+    <footer className="footer"><div className="container footer-grid"><div><Link className="brand brand-footer" to="/"><span className="brand-mark"><House size={20}/></span><span>easy<span>home</span></span></Link><p>Giúp bạn tìm được không gian phù hợp, đơn giản và minh bạch hơn mỗi ngày.</p></div><div><strong>Khám phá</strong><Link to="/">Tất cả tin đăng</Link><Link to="/saved">Tin đã lưu</Link><Link to="/new">Đăng nhà cho thuê</Link></div><div><strong>Về EasyHome</strong><p>Nền tảng đăng tin kết nối bên cho thuê và người tìm thuê. Hai bên tự thỏa thuận giao dịch; EasyHome không nhận tiền cọc hay tiền thuê nhà.</p></div></div><div className="container footer-bottom"><span>© 2026 EasyHome · Phase 1</span><span>Thanh toán dịch vụ và rút tiền được đối soát bởi Admin.</span></div></footer>
   </div>
 }
 export default function App() {
   const [session, setSession] = useState(getSession)
   const [sessionIssue,setSessionIssue]=useState(null)
+  const [identityPrompt,setIdentityPrompt]=useState(false)
   const login = data => { saveSession(data); setSession(data) }
   const logout = () => { saveSession(null); setSession(null) }
   useEffect(()=>{
-    const handle=e=>{setSessionIssue(e.detail);saveSession(null);setSession(null)}
+    const handle=e=>{if(e.detail?.code==='IDENTITY_REQUIRED'){setIdentityPrompt(true);return}setSessionIssue(e.detail);saveSession(null);setSession(null)}
     window.addEventListener('easyhome:session-issue',handle)
     return()=>window.removeEventListener('easyhome:session-issue',handle)
   },[])
@@ -89,9 +94,11 @@ export default function App() {
     const timer=setInterval(check,15000)
     return()=>clearInterval(timer)
   },[session?.token])
+  useEffect(()=>{setIdentityPrompt(Boolean(session?.token&&!session.user?.verified&&!['ADMIN','SUPER_ADMIN'].includes(session.user?.role)))},[session?.token,session?.user?.verified,session?.user?.role])
   const locked=sessionIssue?.code==='ACCOUNT_LOCKED'
   const until=locked&&sessionIssue.until!=='Vĩnh viễn'?new Date(sessionIssue.until).toLocaleString('vi-VN'):'Vĩnh viễn'
   return <Auth.Provider value={{session,login,logout}}><BrowserRouter><Shell/></BrowserRouter>
+    {identityPrompt&&<div className="session-overlay"><section className="session-dialog" role="alertdialog" aria-modal="true"><h2>Hãy xác thực danh tính</h2><p>Hồ sơ của bạn chưa được xác thực. Một số thao tác quan trọng như đăng tin, thanh toán gói hoặc rút tiền cần hoàn tất bước này.</p><div className="phase-actions"><a className="button button-primary" href="/identity" onClick={()=>setIdentityPrompt(false)}>Xác thực ngay</a><button className="button button-outline" onClick={()=>setIdentityPrompt(false)}>Để sau</button></div></section></div>}
     {sessionIssue&&<div className="session-overlay"><section className="session-dialog" role="alertdialog" aria-modal="true" aria-labelledby="session-title">
       <h2 id="session-title">{locked?'Tài khoản đang bị khóa':'Phiên đăng nhập đã kết thúc'}</h2>
       {locked&&<><p><strong>Lý do:</strong> {sessionIssue.reason||'Không có lý do được ghi nhận'}</p><p><strong>Thời hạn:</strong> {until}</p></>}

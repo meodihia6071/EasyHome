@@ -24,7 +24,11 @@ public class Errors {
       "until",e.until()==null?"Vĩnh viễn":e.until().toString()));
   }
   @ExceptionHandler(BusinessException.class)
-  ResponseEntity<Map<String,String>> business(BusinessException e){return ResponseEntity.badRequest().body(Map.of("message",e.getMessage()));}
+  ResponseEntity<Map<String,Object>> business(BusinessException e){
+    String message=e.getMessage()==null?"Yêu cầu không hợp lệ":e.getMessage();
+    boolean identityRequired=message.toLowerCase(java.util.Locale.ROOT).contains("cần xác thực")||message.toLowerCase(java.util.Locale.ROOT).contains("chỉ tài khoản được xác thực");
+    return ResponseEntity.badRequest().body(identityRequired?Map.of("message",message,"code","IDENTITY_REQUIRED"):Map.of("message",message));
+  }
   @ExceptionHandler(MethodArgumentNotValidException.class)
   ResponseEntity<Map<String,String>> invalid(MethodArgumentNotValidException e){
     String message=e.getBindingResult().getFieldErrors().stream().findFirst().map(x->x.getField()+": "+x.getDefaultMessage()).orElse("Dữ liệu không hợp lệ");

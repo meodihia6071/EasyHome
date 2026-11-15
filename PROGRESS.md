@@ -1,6 +1,6 @@
-# CURRENT — EasyHome V2 Phase 1 (12/11/2026)
+# CURRENT — EasyHome V2 Phase 1 (16/11/2026)
 
-## Update theo YeuCauUpdate.docx — 15/11/2026
+## Update theo YeuCauUpdate.docx — 15/11/2026 (trạng thái tại thời điểm đó)
 
 - DONE: nút hiện/ẩn mật khẩu; phản hồi lưu tin; font Be Vietnam Pro; lọc tự động theo từ khóa, địa điểm, loại nhà và khoảng giá; gợi ý địa điểm lấy từ tin ACTIVE.
 - DONE: bỏ tư cách người đăng ở đăng ký; chọn OWNER/BROKER/AGENCY theo từng tin, hiển thị nhãn giấy tờ cần tải trong khu vực minh chứng.
@@ -8,7 +8,7 @@
 - DONE: đặt lại mật khẩu tăng phiên bản xác thực và thu hồi mọi JWT đã cấp trước đó.
 - DONE: khóa tài khoản trả lý do và thời hạn; frontend kiểm tra phiên mỗi 15 giây, xóa session và hiện hộp thoại khi tài khoản bị khóa; route không đủ quyền hiển thị 404.
 - TESTED: `mvn.cmd -q clean test` — **11 test, 0 lỗi** trên H2 in-memory; `npm.cmd run build` — **PASS**; `scripts/test-core.ps1` — **198/198**.
-- PENDING: xác minh migration trên MariaDB/XAMPP, gửi email reset qua SMTP thật và kiểm thử thao tác trình duyệt. Không dùng giấy tờ thật hoặc giao dịch thật.
+- PENDING tại 15/11: các hạng mục này đã được cập nhật sau đó; xem mục 16/11 ở cuối file để biết trạng thái hiện tại.
 
 Đã bắt đầu triển khai bản đặc tả V2 được duyệt. Code mới có trong ZIP này, không tự push GitHub.
 
@@ -179,3 +179,13 @@ Nguyên tắc: `DONE` = file đã tạo và quy tắc có thể kiểm tra; `TES
 - Xem `ARCHITECTURE.md`. Chuyển code từ package phẳng thành cấu trúc Spring Boot theo lớp, và tách React pages theo chức năng.
 - Giữ tên file hiện có và các URL API; chỉ di chuyển file, tách class cùng file và cập nhật import/visibility cần thiết.
 - Đã kiểm tra cú pháp và chạy 198 domain checks. Maven/npm/XAMPP runtime còn chờ nghiệm thu.
+
+## 16/11/2026 — Hoàn tất yêu cầu cập nhật EasyHome
+
+- Hoàn thiện nhắc xác thực danh tính bằng popup, chặn tác vụ cần CCCD; bỏ sửa email ở màn OTP; hiển thị lý do từ chối; bỏ tab xác thực Admin.
+- Sửa lưu tin thành tim đỏ, chuyển Admin về Home sau đăng nhập, thêm xem tài khoản và số dư trên header; xác nhận trước khi khóa user.
+- Thay địa giới chọn tỉnh/thành → xã/phường theo danh sách 34 tỉnh/thành hiện hành; đường/phố là gợi ý từ tin đang hoạt động và có thể nhập tay. File upload có xem trước; thêm chọn ảnh đại diện bằng file hoặc URL; tắt gợi ý từ khóa chính.
+- Sửa lỗi VIP/status legacy bằng Flyway V6 mở rộng cột `status` và `plan`; V7 tách số dư thật khỏi số dư mock cũ; hiển thị ảnh tại moderation và xóa mục tài khoản hệ thống.
+- Nạp VietQR tạo yêu cầu pending, người dùng bấm đã chuyển để báo Admin; số dư khả dụng mới được tách khỏi cột mock cũ qua Flyway V7 và chỉ tăng sau Admin đối soát. Rút tiền chờ Admin, không giữ/trừ khi tạo yêu cầu và chỉ trừ sau khi Admin xác nhận chuyển khoản.
+- SMTP OTP/reset password đọc secret qua biến môi trường; không ghi App Password vào repository.
+- Kiểm thử: Java rules 198/198 PASS; Maven/H2 14/14 PASS; Vite production build PASS. MariaDB/Flyway V6–V7, SMTP thật và browser E2E vẫn cần nghiệm thu trên môi trường tương ứng.

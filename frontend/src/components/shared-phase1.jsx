@@ -21,3 +21,9 @@ export async function showPrivateImage(url) {
   const link = document.createElement('a'); link.href = local; link.target = '_blank'; link.rel = 'noopener noreferrer'
   link.click(); setTimeout(() => URL.revokeObjectURL(local), 60000)
 }
+
+export function PrivateImagePreview({ url, alt }) {
+  const [src,setSrc]=React.useState('')
+  useEffect(()=>{let objectUrl='';let alive=true;fetch(url,{headers:{Authorization:'Bearer '+getSession()?.token}}).then(r=>{if(!r.ok)throw new Error();return r.blob()}).then(blob=>{objectUrl=URL.createObjectURL(blob);if(alive)setSrc(objectUrl)}).catch(()=>{});return()=>{alive=false;if(objectUrl)URL.revokeObjectURL(objectUrl)}},[url])
+  return src?<img className="private-image-preview" src={src} alt={alt||'Ảnh đã tải lên'}/>:<span className="text-muted">Đang tải ảnh…</span>
+}

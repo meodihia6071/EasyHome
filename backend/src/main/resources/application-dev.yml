@@ -1,4 +1,4 @@
 app:
-  mock-payments: true
-  email-mode: console
+  mock-payments: false
+  email-mode: ${APP_EMAIL_MODE:smtp}
   seed-demo: true

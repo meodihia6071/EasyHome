@@ -13,8 +13,10 @@ import jakarta.persistence.*;
 public class WalletAccount {
   @Id @GeneratedValue(strategy=GenerationType.IDENTITY) public Long id;
   @OneToOne(fetch=FetchType.LAZY,optional=false) @JoinColumn(name="user_id",unique=true) public User user;
-  @Column(nullable=false) public long demoBalance=0;
-  @Column(nullable=false) public long demoHeld=0;
+  @Column(name="available_balance",nullable=false) public long availableBalance=0;
+  @Column(name="held_balance",nullable=false) public long heldBalance=0;
+  @Deprecated @Column(nullable=false) public long demoBalance=0;
+  @Deprecated @Column(nullable=false) public long demoHeld=0;
   @Version public Long version;
   public WalletAccount() {}
 }

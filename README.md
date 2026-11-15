@@ -4,13 +4,13 @@
 
 **Nguồn chuẩn:** https://github.com/meodihia6071/EasyHome, nhánh `main` (đối chiếu commit `9851a06f80a470b7373453273c69b874ab3af637`).
 
-**Đã viết source:** Email OTP, số điện thoại duy nhất; xác thực người đăng với 2 ảnh tài liệu riêng; ảnh đăng tin và minh chứng riêng; thanh toán giả/đơn dịch vụ/số dư; kiểm duyệt sau thanh toán; từ chối và hoàn tiền; yêu cầu bổ sung 72 giờ; khóa/mở tài khoản có lịch sử; bảng giá lưu DB, API điều chỉnh giá; yêu cầu rút mô phỏng và Finance xử lý; Flyway bổ sung bảng.
+**Đã viết source:** Email OTP và đặt lại mật khẩu qua SMTP; xác thực người đăng với 2 ảnh tài liệu riêng; ảnh đăng tin và minh chứng riêng; gói đăng tin; nạp VietQR chờ Admin đối soát rồi mới cộng số dư; yêu cầu rút chờ duyệt và chỉ trừ số dư sau khi Admin xác nhận đã chuyển; kiểm duyệt, từ chối/hoàn tiền, yêu cầu bổ sung 72 giờ; khóa/mở tài khoản có lịch sử; bảng giá lưu DB; Flyway bổ sung bảng và sửa cột trạng thái cũ.
 
-**Cập nhật 15/11/2026 theo `YeuCauUpdate.docx`:** có hiện/ẩn mật khẩu, đặt lại mật khẩu bằng liên kết dùng một lần, tự đăng nhập sau xác thực OTP, cảnh báo và tự thoát phiên khi tài khoản bị khóa, chọn tư cách theo từng tin, gợi ý địa điểm và tự lọc theo khoảng giá.
+**Cập nhật 16/11/2026 theo `YeuCauUpdate.docx`:** có hiện/ẩn mật khẩu, đặt lại mật khẩu bằng liên kết dùng một lần, tự đăng nhập sau xác thực OTP, cảnh báo và tự thoát phiên khi tài khoản bị khóa, chọn tư cách theo từng tin, gợi ý địa điểm và tự lọc theo khoảng giá.
 
-**KHÔNG SỬ DỤNG ĐỂ GIAO DỊCH TIỀN THẬT.** Nạp tiền, QR, số dư và rút đều mô phỏng. Không có kết nối ngân hàng/cổng thanh toán thật. Ảnh CCCD chỉ dùng để thử luồng bằng tài liệu thử nghiệm phù hợp; chưa nghiệm thu bảo mật dữ liệu nhạy cảm.
+**Nạp/rút đang dùng đối soát thủ công.** VietQR tạo lệnh chuyển khoản; ứng dụng không nhận webhook hay tự xác minh giao dịch ngân hàng. Admin chỉ xác nhận sau khi kiểm tra tiền đã vào; với rút tiền, Admin chuyển khoản ngoài ứng dụng rồi xác nhận để ghi sổ. Chưa nghiệm thu bảo mật dữ liệu định danh hoặc vận hành tài chính production.
 
-**Kiểm thử cập nhật 15/11/2026:** Java rules 198/198 PASS; Maven/H2 integration 11/11 PASS; Vite production build PASS. **MariaDB/XAMPP, Gmail SMTP thật và browser E2E vẫn chưa được xác minh.** Không coi bản này là release production.
+**Kiểm thử cập nhật 16/11/2026:** Java rules 198/198 PASS; Maven/H2 integration 14/14 PASS; Vite production build PASS. **MariaDB/XAMPP migration, Gmail SMTP gửi thật và browser E2E vẫn chưa được xác minh.**
 
 ## 1. Cài đặt và chạy local trên Windows
 
@@ -34,7 +34,7 @@ npm run dev
 
 4. Trang web `http://localhost:5173`; API `http://localhost:8081/api/listings`; phpMyAdmin `http://localhost/phpmyadmin`.
 
-**Quan trọng:** Phải dùng profile `dev` để bật OTP email in trên console và thanh toán giả. Không sử dụng profile này trên máy chủ công khai. Nếu không có profile `dev`, mặc định không bật mock-payment và email phải cấu hình SMTP.
+**Quan trọng:** Profile `dev` tắt mock-payment. Email dùng SMTP; cấu hình `SMTP_USERNAME`, `SMTP_APP_PASSWORD` và `APP_EMAIL_MODE=smtp` qua biến môi trường. Không lưu mật khẩu ứng dụng trong source hoặc commit.
 
 Nếu XAMPP dùng mật khẩu hoặc cổng khác, đặt biến môi trường trước khi chạy backend:
 
@@ -46,14 +46,14 @@ $env:DB_PASSWORD = ''
 
 ## 2. Luồng thử nghiệm đầy đủ
 
-1. **Đăng ký:** mở `/register`. Email và số điện thoại không được trùng. Sau khi đăng ký, chuyển đến `/verify-email`. Mã OTP 6 số được in trong terminal backend dưới dòng `[EASYHOME DEV EMAIL OTP]`. OTP hết hạn sau 5 phút, gửi lại sau 60 giây, tối đa 5 email OTP/24h và 5 lần nhập sai/mã. Xác thực thành công sẽ tự đăng nhập. Tài khoản chưa xác thực hết thời hạn chờ 24 giờ sẽ được dọn bằng scheduler.
+1. **Đăng ký:** mở `/register`. Email và số điện thoại không được trùng. Sau khi đăng ký, chuyển đến `/verify-email`. Mã OTP 6 số được gửi tới email đăng ký bằng SMTP. Cấu hình Gmail theo `note/GMAIL_OTP_SETUP.md`. OTP hết hạn sau 5 phút, gửi lại sau 60 giây, tối đa 5 email OTP/24h và 5 lần nhập sai/mã. Xác thực thành công sẽ tự đăng nhập. Tài khoản chưa xác thực hết thời hạn chờ 24 giờ sẽ được dọn bằng scheduler.
 2. **Xác thực người đăng:** đăng nhập rồi mở `/identity`. Chọn `Bắt đầu xác thực`, tải **hai ảnh thử nghiệm** (JPEG/PNG), nhấn gửi. Admin đăng nhập → `/staff` → xem từng ảnh, duyệt hoặc yêu cầu bổ sung. Một tài khoản duyệt thành công chỉ phải xác thực lần nữa nếu sau này bị thu hồi/quy định yêu cầu.
 3. **Tạo tin:** mở `/new`, nhập thông tin, chọn tư cách cho tin (chủ nhà/môi giới/đơn vị quản lý) và lưu `DRAFT`. Màn hình tiếp theo yêu cầu tải giấy tờ phù hợp vào `EVIDENCE` (giấy tờ nhà đất/chứng chỉ hành nghề/ủy quyền đơn vị) cùng ít nhất **hai ảnh công khai** (`PUBLIC`). Mỗi file tối đa 6 MB, JPEG/PNG đã xác minh cấu trúc.
-4. **Mua gói:** `/checkout/:id`. Chọn FREE (0đ/7 ngày một lần), STANDARD (29.000đ/15 ngày), VIP Bạc (79.000đ/15 ngày), VIP Vàng (149.000đ/15 ngày) hoặc VIP Kim Cương (299.000đ/15 ngày). Có thể dùng `/wallet` nạp số dư demo rồi thanh toán ví DEMO, hoặc nhấn `Mô phỏng QR thành công` để tạo thanh toán giả cho đơn. **Không quét hoặc chuyển tiền thật.**
+4. **Mua gói:** `/checkout/:id`. Chọn FREE (0đ/7 ngày một lần), STANDARD (29.000đ/15 ngày), VIP Bạc (79.000đ/15 ngày), VIP Vàng (149.000đ/15 ngày) hoặc VIP Kim Cương (299.000đ/15 ngày). Có thể dùng `/wallet` để nạp qua VietQR. Sau khi chuyển đúng số tiền và nội dung tham chiếu, bấm xác nhận; Admin đối soát giao dịch và chỉ khi duyệt số dư mới được cộng. Thanh toán gói bằng số dư đã được duyệt.
 5. **Gửi kiểm duyệt:** sau khi đơn được ghi `PAID`, bấm `Gửi tin kiểm duyệt`; `PENDING_REVIEW` không xuất hiện công khai.
-6. **Moderator:** đăng nhập `mod@easyhome.vn` (tài khoản demo), chọn `Kiểm duyệt`, mở **chi tiết bài** để kiểm tra đầy đủ nội dung, ảnh, chứng cứ và lịch sử. Duyệt → `ACTIVE` và thời hạn bắt đầu tại thời điểm duyệt. Từ chối (lý do ≥10 ký tự) → `REJECTED`, đơn `REFUNDED`, số tiền đưa vào số dư demo. Yêu cầu bổ sung → `NEEDS_UPDATE` trong 72 giờ rồi tự từ chối/hoàn khi quá hạn.
+6. **Moderator:** đăng nhập `mod@easyhome.vn` (tài khoản demo), chọn `Kiểm duyệt`, mở **chi tiết bài** để kiểm tra đầy đủ nội dung, ảnh, chứng cứ và lịch sử. Duyệt → `ACTIVE` và thời hạn bắt đầu tại thời điểm duyệt. Từ chối (lý do ≥10 ký tự) → `REJECTED`, đơn `REFUNDED`, số tiền được hoàn vào số dư khả dụng theo sổ giao dịch. Yêu cầu bổ sung → `NEEDS_UPDATE` trong 72 giờ rồi tự từ chối/hoàn khi quá hạn.
 7. **Khóa/mở:** Admin mở `/staff`, khóa theo số ngày hoặc không thời hạn, ghi lý do, xem lịch sử, mở trước hạn nếu cần. Scheduler xử lý khóa hết hạn.
-8. **Rút DEMO:** `/wallet` tạo yêu cầu rút từ **số dư giả**; Admin hoặc FINANCE `/staff` từ chối (giải phóng số dư giữ) hoặc hoàn thành **mô phỏng**, không chuyển tiền ngân hàng.
+8. **Rút tiền:** `/wallet` tạo yêu cầu chờ Admin/Finance duyệt; số dư chưa bị trừ khi gửi yêu cầu. Admin/Finance thực hiện chuyển khoản bên ngoài trước, sau đó xác nhận trên `/staff`; chỉ lúc xác nhận số dư mới giảm. Nếu từ chối, số dư giữ nguyên.
 
 **Quên mật khẩu:** từ `/login` chọn `Quên mật khẩu?`. Backend gửi liên kết một lần hết hạn sau 20 phút; cấu hình `APP_FRONTEND_URL` theo domain frontend. Địa chỉ email không tồn tại vẫn nhận cùng thông báo xác nhận để tránh dò tài khoản.
 
@@ -63,13 +63,13 @@ Tài khoản seeded **chỉ dùng trên máy local**: `admin@easyhome.vn` / `Adm
 
 - Ảnh được lưu ở `backend/private-uploads/`, **không** ở thư mục web public. `/api/media/{id}` kiểm tra quyền. Tài liệu xác thực chỉ owner và Admin/Super Admin xem được; Moderator chỉ xem ảnh đăng tin/minh chứng tài sản và trạng thái người đăng.
 - File upload kiểm tra magic bytes JPEG/PNG, ảnh giải mã được, giới hạn kích thước. Đường dẫn lưu trữ ngẫu nhiên, không trả về filesystem path.
-- `APP_MOCK_PAYMENTS=false` theo mặc định và profile `prod` từ chối các API giả lập. `app.email-mode=console` chỉ dùng trong profile dev/test.
-- Sổ giao dịch dùng reference duy nhất, số dư demo tách khỏi tiền thật. Không có endpoint chi tiền thật; hoàn tiền khi bị từ chối idempotent.
+- `APP_MOCK_PAYMENTS=false` theo mặc định và profile `prod` từ chối các API giả lập. `app.email-mode=console` chỉ dùng trong profile test hoặc môi trường local không public.
+- Sổ giao dịch dùng reference duy nhất; nạp VietQR chờ Admin đối soát, rút tiền trừ số dư khi Admin xác nhận đã chuyển khoản. Không có webhook ngân hàng; việc đối soát và chuyển tiền do Admin thực hiện ngoài ứng dụng. Hoàn tiền khi bị từ chối idempotent.
 - Đây là hệ thống đang phát triển, **chưa đủ điều kiện tiếp nhận CCCD thật hoặc giao dịch thật** khi chưa kiểm thử xâm nhập, quyền truy cập, lưu giữ dữ liệu và đánh giá pháp lý.
 
 ## 4. Database và nâng cấp source cũ
 
-- Flyway bổ sung schema qua `V1`–`V5`; V4 thêm loại người đăng theo tin và V5 thêm phiên bản xác thực để thu hồi JWT sau khi đặt lại mật khẩu. Migration cột kiểm tra schema cũ trước khi thêm.
+- Flyway bổ sung schema qua `V1`–`V7`; V4 thêm loại người đăng theo tin, V5 thêm phiên bản xác thực để thu hồi JWT sau khi đặt lại mật khẩu, V6 mở rộng cột trạng thái/plan legacy, V7 tạo số dư khả dụng mới ở mức 0 để tách khỏi số dư mock cũ. Migration cột kiểm tra schema cũ trước khi thêm.
 - Trên máy dev, `ddl-auto=update` còn tự bổ sung trường vào các bảng V1 (`users`, `listings`, `service_orders`). **Chưa có migration production đầy đủ cho các trường cũ**, nên profile `prod` (`ddl-auto=validate`) có thể không khởi động nếu chưa chuyển đổi schema.
 - Dữ liệu `PENDING_REVIEW`/`AWAITING_PAYMENT` thuộc luồng cũ **không tự chuyển** thành các đơn hợp lệ của luồng V2. Sau khi backup, phải đối chiếu trạng thái các tin chờ xử lý trước khi chạy V2 trên database cũ.
 - Dữ liệu H2 file cũ không được tự động nhập vào MariaDB.
@@ -92,7 +92,7 @@ Tài khoản seeded **chỉ dùng trên máy local**: `admin@easyhome.vn` / `Adm
 | Account locks | `POST /api/admin/users/{id}/lock`, `/unlock`, `GET /api/admin/users/{id}/lock-history` |
 | Pricing | `GET /api/plans`, `POST /api/admin/plans/{code}` |
 
-**Giai đoạn tiếp theo, chưa có trong bản này:** giao dịch thật/QR ngân hàng, đẩy tin ngay/lượt/hẹn giờ, hội viên môi giới, tính chênh lệch nâng cấp, email SMTP production/OTP điện thoại; không dùng các tính năng demo thay thế dịch vụ thật.
+**Chưa có trong bản này:** webhook/ngân hàng tự động đối soát, chuyển khoản tự động khi rút, đẩy tin ngay/lượt/hẹn giờ, hội viên môi giới, tính chênh lệch nâng cấp. Cấu hình SMTP qua biến môi trường; chưa xác minh gửi thư thực tế.
 
 ## 6. Bản source và hạn chế môi trường
 
