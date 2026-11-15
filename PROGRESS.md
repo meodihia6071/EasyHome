@@ -1,5 +1,15 @@
 # CURRENT — EasyHome V2 Phase 1 (12/11/2026)
 
+## Update theo YeuCauUpdate.docx — 15/11/2026
+
+- DONE: nút hiện/ẩn mật khẩu; phản hồi lưu tin; font Be Vietnam Pro; lọc tự động theo từ khóa, địa điểm, loại nhà và khoảng giá; gợi ý địa điểm lấy từ tin ACTIVE.
+- DONE: bỏ tư cách người đăng ở đăng ký; chọn OWNER/BROKER/AGENCY theo từng tin, hiển thị nhãn giấy tờ cần tải trong khu vực minh chứng.
+- DONE: xác thực OTP trả session để tự đăng nhập; thêm đặt lại mật khẩu bằng liên kết ngẫu nhiên một lần, hết hạn sau 20 phút, gửi lại tối đa mỗi 60 giây.
+- DONE: đặt lại mật khẩu tăng phiên bản xác thực và thu hồi mọi JWT đã cấp trước đó.
+- DONE: khóa tài khoản trả lý do và thời hạn; frontend kiểm tra phiên mỗi 15 giây, xóa session và hiện hộp thoại khi tài khoản bị khóa; route không đủ quyền hiển thị 404.
+- TESTED: `mvn.cmd -q clean test` — **11 test, 0 lỗi** trên H2 in-memory; `npm.cmd run build` — **PASS**; `scripts/test-core.ps1` — **198/198**.
+- PENDING: xác minh migration trên MariaDB/XAMPP, gửi email reset qua SMTP thật và kiểm thử thao tác trình duyệt. Không dùng giấy tờ thật hoặc giao dịch thật.
+
 Đã bắt đầu triển khai bản đặc tả V2 được duyệt. Code mới có trong ZIP này, không tự push GitHub.
 
 - DONE IN SOURCE: email OTP, unique phone, identity doc review, upload public/evidence, reviewed-after-payment, mock payment, demo wallet/withdrawal/refund, account locks, plans in DB, UI and versioned additive migrations.

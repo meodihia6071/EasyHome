@@ -65,6 +65,21 @@ public class EmailService {
       mail.send(msg);
     } else throw new IllegalStateException("Chế độ gửi OTP không hợp lệ");
   }
+  public void sendPasswordReset(User user,String link){
+    if("console".equals(mode)){
+      if(!environment.acceptsProfiles(org.springframework.core.env.Profiles.of("dev","test")))
+        throw new IllegalStateException("Email console chỉ được phép trong profile dev/test");
+      System.out.println("[EASYHOME DEV PASSWORD RESET] "+user.email+" => "+link);
+      return;
+    }
+    if(!"smtp".equals(mode))throw new IllegalStateException("Chế độ gửi email không hợp lệ");
+    JavaMailSender mail=sender.getIfAvailable();
+    if(mail==null)throw new IllegalStateException("Chưa cấu hình SMTP để gửi email");
+    SimpleMailMessage msg=new SimpleMailMessage();msg.setTo(user.email);msg.setFrom(from);
+    msg.setSubject("EasyHome - Đặt lại mật khẩu");
+    msg.setText("Mở liên kết sau để đặt lại mật khẩu (hiệu lực 20 phút, dùng một lần):\n"+link+"\nNếu bạn không yêu cầu, hãy bỏ qua email này.");
+    mail.send(msg);
+  }
   @Transactional
   public void confirm(User u,String code){
     Rules.check(code!=null && code.matches("[0-9]{6}"),"Mã OTP phải có 6 chữ số");

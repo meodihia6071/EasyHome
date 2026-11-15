@@ -20,6 +20,7 @@ public class Listing {
   @Column(nullable=false,length=3000) public String description;
   @Enumerated(EnumType.STRING) @Column(nullable=false) public ListingStatus status=ListingStatus.DRAFT;
   @Enumerated(EnumType.STRING) public ListingPlan plan;
+  @Enumerated(EnumType.STRING) @Column(length=20) public PublisherType publisherType=PublisherType.OWNER;
   @Column(nullable=false) public int priority=0;
   @Column(length=500) public String reviewNote;
   @Column(nullable=false) public Instant createdAt=Instant.now();

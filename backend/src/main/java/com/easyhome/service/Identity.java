@@ -1,5 +1,6 @@
 package com.easyhome.service;
 import com.easyhome.common.Rules;
+import com.easyhome.common.AccountLockedException;
 import com.easyhome.common.Rules.*;
 import com.easyhome.common.RulesV2;
 import com.easyhome.model.*;
@@ -29,7 +30,10 @@ public class Identity {
     try{
       User u=users.findById(Long.parseLong(jwt.getSubject())).orElseThrow(()->new ResponseStatusException(HttpStatus.UNAUTHORIZED,"Không tìm thấy tài khoản"));
       if(!u.emailVerified)throw new ResponseStatusException(HttpStatus.FORBIDDEN,"Email chưa xác thực");
-      if(u.locked && (u.lockedUntil==null||u.lockedUntil.isAfter(Instant.now())))throw new ResponseStatusException(HttpStatus.FORBIDDEN,"Tài khoản đang bị khóa");
+      if(u.locked && (u.lockedUntil==null||u.lockedUntil.isAfter(Instant.now())))throw new AccountLockedException(u.lockReason,u.lockedUntil);
+      Object claim=jwt.getClaim("av");
+      int tokenVersion=claim instanceof Number n?n.intValue():0;
+      if(tokenVersion!=u.authVersion)throw new ResponseStatusException(HttpStatus.UNAUTHORIZED,"Phiên đăng nhập đã bị thu hồi");
       return u;
     }catch(NumberFormatException ex){throw new ResponseStatusException(HttpStatus.UNAUTHORIZED,"Token không hợp lệ");}
   }

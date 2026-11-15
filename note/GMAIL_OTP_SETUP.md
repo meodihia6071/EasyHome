@@ -19,6 +19,7 @@ File `backend/src/main/resources/application.yml` đã có cấu hình SMTP qua 
 - `spring.mail.password=${SMTP_APP_PASSWORD:}`
 - `app.email-mode=${APP_EMAIL_MODE:smtp}`
 - `app.email-from=${APP_EMAIL_FROM:${SMTP_USERNAME:no-reply@easyhome.vn}}`
+- `app.frontend-url=${APP_FRONTEND_URL:http://localhost:5173}` (được dùng làm URL trong thư đặt lại mật khẩu)
 
 **Dùng PowerShell**, thay bằng email và App Password của chính bạn:
 

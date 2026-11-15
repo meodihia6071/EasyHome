@@ -71,4 +71,13 @@ Các file `pages.jsx`, `phase1.jsx`, `api.js`, `style.css` được giữ nguyê
 
 **Chưa xác minh được:** `mvn clean test`, `npm run build`, khởi động ứng dụng và truy vấn MariaDB qua XAMPP trong môi trường đóng gói, vì không có Maven và không có mạng tải dependencies. Không coi bản này đã sẵn sàng production cho đến khi chạy nghiệm thu thực tế.
 
+
+## Cập nhật 15/11/2026
+
+- Thêm `PasswordResetService` và bảng `password_reset_tokens` (Flyway V3); email reset dùng liên kết ngẫu nhiên một lần.
+- Tư cách đăng tin nằm trên `Listing.publisherType`; giá trị cũ thiếu dữ liệu được hiểu là `OWNER`.
+- Flyway V4/V5 thêm `publisher_type` và `auth_version` có điều kiện cho DB cũ; cơ sở mới để Hibernate tạo cột trong bảng mới.
+- `GET /api/listings/locations` cung cấp tỉnh/thành và quận/huyện đang có tin ACTIVE để làm gợi ý.
+- Kiểm thử hiện tại: Maven/H2 **11/11**, Vite build **PASS**, domain rules **198/198**. MariaDB/XAMPP, SMTP thật và browser E2E chưa chạy.
+
 > Tạo thư mục thử nghiệm mới, sao lưu source và database trước khi thay thế. Không chép `target/`, `node_modules/`, `.env` có mật khẩu hoặc thư mục `private-uploads` lên Git.

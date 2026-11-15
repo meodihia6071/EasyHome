@@ -10,6 +10,7 @@ import com.easyhome.api.*;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
@@ -75,9 +76,11 @@ class MarketplaceFlowTest {
        .content(body(Map.of("email",email,"password","Test@12345")))).andExpect(status().isForbidden());
     Matcher m=Pattern.compile("=> (\\d{6})").matcher(output.toString(StandardCharsets.UTF_8));
     assertTrue(m.find(),"Dev-only email OTP must appear in test output");
-    mvc.perform(post("/api/auth/verify-email").contentType(MediaType.APPLICATION_JSON)
-       .content(body(Map.of("email",email,"code",m.group(1))))).andExpect(status().isOk());
-    return login(email,"Test@12345");
+    var verified=mvc.perform(post("/api/auth/verify-email").contentType(MediaType.APPLICATION_JSON)
+       .content(body(Map.of("email",email,"code",m.group(1))))).andExpect(status().isOk()).andReturn();
+    String session=parse(verified.getResponse().getContentAsString()).path("token").asText();
+    assertFalse(session.isBlank(),"Email verification should sign the user in");
+    return session;
   }
   private long image(String token,long id,String purpose)throws Exception{
     var r=mvc.perform(multipart("/api/my/listings/"+id+"/media").file(new MockMultipartFile("file","image.png","image/png",PNG))
@@ -162,8 +165,13 @@ class MarketplaceFlowTest {
     String owner=login("user@easyhome.vn","User@123456"),admin=admin();
     Long id=users.findByEmailIgnoreCase("user@easyhome.vn").orElseThrow().id;
     postJson("/api/admin/users/"+id+"/lock",admin,Map.of("reason","Có dấu hiệu gửi spam liên hệ nhiều lần","days",7));
+    mvc.perform(get("/api/auth/session-status").header("Authorization","Bearer "+owner)).andExpect(status().isForbidden())
+      .andExpect(jsonPath("$.code").value("ACCOUNT_LOCKED"))
+      .andExpect(jsonPath("$.reason").value("Có dấu hiệu gửi spam liên hệ nhiều lần"))
+      .andExpect(jsonPath("$.until").isNotEmpty());
     mvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON)
-      .content(body(Map.of("email","user@easyhome.vn","password","User@123456")))).andExpect(status().isForbidden());
+      .content(body(Map.of("email","user@easyhome.vn","password","User@123456")))).andExpect(status().isForbidden())
+      .andExpect(jsonPath("$.code").value("ACCOUNT_LOCKED"));
     mvc.perform(get("/api/admin/users/"+id+"/lock-history").header("Authorization","Bearer "+admin)).andExpect(status().isOk())
       .andExpect(jsonPath("$[0].action").value("LOCK"));
     postJson("/api/admin/users/"+id+"/unlock",admin,Map.of("reason","Đã xác minh và xử lý khiếu nại"));
@@ -213,5 +221,51 @@ class MarketplaceFlowTest {
     assertEquals(32000,parse(r.getResponse().getContentAsString()).path("demoAvailable").asInt());
     mvc.perform(get("/api/wallet/ledger").header("Authorization","Bearer "+user))
       .andExpect(status().isOk()).andExpect(jsonPath("$[0].action").value("DEMO_TOPUP"));
+  }
+
+  @Test void publisherTypeBelongsToListingAndActiveLocationsAreSuggested()throws Exception{
+    String owner=login("owner@easyhome.vn","Owner@12345");
+    String city="Integration City "+UUID.randomUUID();
+    ObjectNode listing=(ObjectNode)parse(VALID).deepCopy();listing.put("publisherType","BROKER");listing.put("city",city);
+    JsonNode created=postJson("/api/my/listings",owner,listing);long id=created.path("id").asLong();
+    assertEquals("BROKER",created.path("ownerType").asText());
+    mvc.perform(get("/api/my/listings/"+id).header("Authorization","Bearer "+owner))
+      .andExpect(status().isOk()).andExpect(jsonPath("$.publisherType").value("BROKER"));
+    Listing active=listings.findById(id).orElseThrow();active.status=ListingStatus.ACTIVE;
+    active.expiresAt=java.time.Instant.now().plusSeconds(86400);
+    listings.save(active);
+    JsonNode locations=parse(mvc.perform(get("/api/listings/locations")).andExpect(status().isOk())
+      .andReturn().getResponse().getContentAsString());
+    String[] cities=mapper.convertValue(locations.path("cities"),String[].class);
+    assertTrue(Arrays.asList(cities).contains(city));
+  }
+
+  @Test void passwordResetLinkChangesPasswordAndCanOnlyBeUsedOnce()throws Exception{
+    String id=UUID.randomUUID().toString().replace("-","");String email="reset"+id+"@example.com";
+    ByteArrayOutputStream output=new ByteArrayOutputStream();PrintStream previous=System.out;String[] oldSession={null};
+    try{
+      System.setOut(new PrintStream(output,true,StandardCharsets.UTF_8));
+      mvc.perform(post("/api/auth/register").contentType(MediaType.APPLICATION_JSON)
+        .content(body(Map.of("fullName","Reset User","email",email,"phone","09"+String.format("%08d",Math.floorMod(id.hashCode(),100_000_000)),"password","Test@12345"))))
+        .andExpect(status().isOk());
+      Matcher otp=Pattern.compile("=> (\\d{6})").matcher(output.toString(StandardCharsets.UTF_8));
+      assertTrue(otp.find());
+      var verified=mvc.perform(post("/api/auth/verify-email").contentType(MediaType.APPLICATION_JSON)
+        .content(body(Map.of("email",email,"code",otp.group(1))))).andExpect(status().isOk()).andReturn();
+      oldSession[0]=parse(verified.getResponse().getContentAsString()).path("token").asText();
+      output.reset();
+      mvc.perform(post("/api/auth/password/forgot").contentType(MediaType.APPLICATION_JSON)
+        .content(body(Map.of("email",email)))).andExpect(status().isOk());
+    }finally{System.setOut(previous);}
+    Matcher link=Pattern.compile("/reset-password\\?token=([A-Za-z0-9_-]{40,})").matcher(output.toString(StandardCharsets.UTF_8));
+    assertTrue(link.find(),"Dev mode should deliver the one-time reset link");String token=link.group(1);
+    mvc.perform(post("/api/auth/password/reset").contentType(MediaType.APPLICATION_JSON)
+      .content(body(Map.of("token",token,"password","Changed@12345")))).andExpect(status().isOk());
+    assertEquals(1,users.findByEmailIgnoreCase(email).orElseThrow().authVersion);
+    mvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON)
+      .content(body(Map.of("email",email,"password","Changed@12345")))).andExpect(status().isOk());
+    mvc.perform(get("/api/auth/session-status").header("Authorization","Bearer "+oldSession[0])).andExpect(status().isUnauthorized());
+    mvc.perform(post("/api/auth/password/reset").contentType(MediaType.APPLICATION_JSON)
+      .content(body(Map.of("token",token,"password","Changed@54321")))).andExpect(status().isBadRequest());
   }
 }

@@ -22,6 +22,7 @@ public class User {
   @Column(nullable=false) public boolean verified=false; // backward compatibility, synchronized with identityStatus
   @Enumerated(EnumType.STRING) @Column(nullable=false,columnDefinition="varchar(32) default 'UNVERIFIED'") public IdentityStatus identityStatus=IdentityStatus.UNVERIFIED;
   @Column(nullable=false) public boolean emailVerified=false;
+  @Column(nullable=false) public int authVersion=0;
   @Column(nullable=false) public int dailyOtpSends=0;
   public Instant otpWindowStart;
   public Instant registrationExpiresAt;
@@ -35,6 +36,8 @@ public class User {
   public String getFullName() { return fullName; }
   public String getEmail() { return email; }
   public String getPhone() { return phone; }
+  public void setPasswordHash(String hash) { this.passwordHash=java.util.Objects.requireNonNull(hash); }
+  public void revokeSessions() { this.authVersion++; }
   public PublisherType getPublisherType() { return publisherType; }
   // identityStatus is the authoritative business state; verified is retained for legacy data.
   public boolean isVerified() { return identityStatus==IdentityStatus.VERIFIED; }

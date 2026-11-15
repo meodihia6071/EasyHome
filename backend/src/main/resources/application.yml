@@ -41,3 +41,4 @@ app:
   email-mode: ${APP_EMAIL_MODE:smtp}
   email-from: ${APP_EMAIL_FROM:${SMTP_USERNAME:no-reply@easyhome.vn}}
   private-storage: ${PRIVATE_STORAGE:./private-uploads}
+  frontend-url: ${APP_FRONTEND_URL:http://localhost:5173}

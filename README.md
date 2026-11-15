@@ -6,9 +6,11 @@
 
 **Đã viết source:** Email OTP, số điện thoại duy nhất; xác thực người đăng với 2 ảnh tài liệu riêng; ảnh đăng tin và minh chứng riêng; thanh toán giả/đơn dịch vụ/số dư; kiểm duyệt sau thanh toán; từ chối và hoàn tiền; yêu cầu bổ sung 72 giờ; khóa/mở tài khoản có lịch sử; bảng giá lưu DB, API điều chỉnh giá; yêu cầu rút mô phỏng và Finance xử lý; Flyway bổ sung bảng.
 
+**Cập nhật 15/11/2026 theo `YeuCauUpdate.docx`:** có hiện/ẩn mật khẩu, đặt lại mật khẩu bằng liên kết dùng một lần, tự đăng nhập sau xác thực OTP, cảnh báo và tự thoát phiên khi tài khoản bị khóa, chọn tư cách theo từng tin, gợi ý địa điểm và tự lọc theo khoảng giá.
+
 **KHÔNG SỬ DỤNG ĐỂ GIAO DỊCH TIỀN THẬT.** Nạp tiền, QR, số dư và rút đều mô phỏng. Không có kết nối ngân hàng/cổng thanh toán thật. Ảnh CCCD chỉ dùng để thử luồng bằng tài liệu thử nghiệm phù hợp; chưa nghiệm thu bảo mật dữ liệu nhạy cảm.
 
-**KẾT QUẢ ĐÃ CHẠY Ở MÔI TRƯỜNG TẠO SOURCE:** Java rules 198/198 PASS; Java syntax parse 41 file PASS; frontend JSX syntax parse 4 file PASS. **KHÔNG CÓ MAVEN/npm dependencies hoặc MariaDB server ở môi trường biên soạn** nên `mvn clean test`, `npm run build`, Spring context và E2E chưa được xác minh. Không coi ZIP là release production.
+**Kiểm thử cập nhật 15/11/2026:** Java rules 198/198 PASS; Maven/H2 integration 11/11 PASS; Vite production build PASS. **MariaDB/XAMPP, Gmail SMTP thật và browser E2E vẫn chưa được xác minh.** Không coi bản này là release production.
 
 ## 1. Cài đặt và chạy local trên Windows
 
@@ -44,14 +46,16 @@ $env:DB_PASSWORD = ''
 
 ## 2. Luồng thử nghiệm đầy đủ
 
-1. **Đăng ký:** mở `/register`. Email và số điện thoại không được trùng. Sau khi đăng ký, chuyển đến `/verify-email`. Mã OTP 6 số được in trong terminal backend dưới dòng `[EASYHOME DEV EMAIL OTP]`. OTP hết hạn sau 5 phút, gửi lại sau 60 giây, tối đa 5 email OTP/24h và 5 lần nhập sai/mã. Tài khoản chưa xác thực hết thời hạn chờ 24 giờ sẽ được dọn bằng scheduler.
+1. **Đăng ký:** mở `/register`. Email và số điện thoại không được trùng. Sau khi đăng ký, chuyển đến `/verify-email`. Mã OTP 6 số được in trong terminal backend dưới dòng `[EASYHOME DEV EMAIL OTP]`. OTP hết hạn sau 5 phút, gửi lại sau 60 giây, tối đa 5 email OTP/24h và 5 lần nhập sai/mã. Xác thực thành công sẽ tự đăng nhập. Tài khoản chưa xác thực hết thời hạn chờ 24 giờ sẽ được dọn bằng scheduler.
 2. **Xác thực người đăng:** đăng nhập rồi mở `/identity`. Chọn `Bắt đầu xác thực`, tải **hai ảnh thử nghiệm** (JPEG/PNG), nhấn gửi. Admin đăng nhập → `/staff` → xem từng ảnh, duyệt hoặc yêu cầu bổ sung. Một tài khoản duyệt thành công chỉ phải xác thực lần nữa nếu sau này bị thu hồi/quy định yêu cầu.
-3. **Tạo tin:** mở `/new`, nhập thông tin và lưu `DRAFT`. `/media/:id`: tải ít nhất **hai ảnh công khai** (`PUBLIC`) và **một ảnh minh chứng riêng tư** (`EVIDENCE`). Mỗi file tối đa 6 MB, JPEG/PNG đã xác minh cấu trúc.
+3. **Tạo tin:** mở `/new`, nhập thông tin, chọn tư cách cho tin (chủ nhà/môi giới/đơn vị quản lý) và lưu `DRAFT`. Màn hình tiếp theo yêu cầu tải giấy tờ phù hợp vào `EVIDENCE` (giấy tờ nhà đất/chứng chỉ hành nghề/ủy quyền đơn vị) cùng ít nhất **hai ảnh công khai** (`PUBLIC`). Mỗi file tối đa 6 MB, JPEG/PNG đã xác minh cấu trúc.
 4. **Mua gói:** `/checkout/:id`. Chọn FREE (0đ/7 ngày một lần), STANDARD (29.000đ/15 ngày), VIP Bạc (79.000đ/15 ngày), VIP Vàng (149.000đ/15 ngày) hoặc VIP Kim Cương (299.000đ/15 ngày). Có thể dùng `/wallet` nạp số dư demo rồi thanh toán ví DEMO, hoặc nhấn `Mô phỏng QR thành công` để tạo thanh toán giả cho đơn. **Không quét hoặc chuyển tiền thật.**
 5. **Gửi kiểm duyệt:** sau khi đơn được ghi `PAID`, bấm `Gửi tin kiểm duyệt`; `PENDING_REVIEW` không xuất hiện công khai.
 6. **Moderator:** đăng nhập `mod@easyhome.vn` (tài khoản demo), chọn `Kiểm duyệt`, mở **chi tiết bài** để kiểm tra đầy đủ nội dung, ảnh, chứng cứ và lịch sử. Duyệt → `ACTIVE` và thời hạn bắt đầu tại thời điểm duyệt. Từ chối (lý do ≥10 ký tự) → `REJECTED`, đơn `REFUNDED`, số tiền đưa vào số dư demo. Yêu cầu bổ sung → `NEEDS_UPDATE` trong 72 giờ rồi tự từ chối/hoàn khi quá hạn.
 7. **Khóa/mở:** Admin mở `/staff`, khóa theo số ngày hoặc không thời hạn, ghi lý do, xem lịch sử, mở trước hạn nếu cần. Scheduler xử lý khóa hết hạn.
 8. **Rút DEMO:** `/wallet` tạo yêu cầu rút từ **số dư giả**; Admin hoặc FINANCE `/staff` từ chối (giải phóng số dư giữ) hoặc hoàn thành **mô phỏng**, không chuyển tiền ngân hàng.
+
+**Quên mật khẩu:** từ `/login` chọn `Quên mật khẩu?`. Backend gửi liên kết một lần hết hạn sau 20 phút; cấu hình `APP_FRONTEND_URL` theo domain frontend. Địa chỉ email không tồn tại vẫn nhận cùng thông báo xác nhận để tránh dò tài khoản.
 
 Tài khoản seeded **chỉ dùng trên máy local**: `admin@easyhome.vn` / `Admin@12345`, `mod@easyhome.vn` / `Mod@123456`, `owner@easyhome.vn` / `Owner@12345`, `user@easyhome.vn` / `User@123456`.
 
@@ -65,7 +69,7 @@ Tài khoản seeded **chỉ dùng trên máy local**: `admin@easyhome.vn` / `Adm
 
 ## 4. Database và nâng cấp source cũ
 
-- Flyway bổ sung bảng qua `backend/src/main/resources/db/migration/V1__base_marker.sql` và `V2__phase1_addon_tables.sql`.
+- Flyway bổ sung schema qua `V1`–`V5`; V4 thêm loại người đăng theo tin và V5 thêm phiên bản xác thực để thu hồi JWT sau khi đặt lại mật khẩu. Migration cột kiểm tra schema cũ trước khi thêm.
 - Trên máy dev, `ddl-auto=update` còn tự bổ sung trường vào các bảng V1 (`users`, `listings`, `service_orders`). **Chưa có migration production đầy đủ cho các trường cũ**, nên profile `prod` (`ddl-auto=validate`) có thể không khởi động nếu chưa chuyển đổi schema.
 - Dữ liệu `PENDING_REVIEW`/`AWAITING_PAYMENT` thuộc luồng cũ **không tự chuyển** thành các đơn hợp lệ của luồng V2. Sau khi backup, phải đối chiếu trạng thái các tin chờ xử lý trước khi chạy V2 trên database cũ.
 - Dữ liệu H2 file cũ không được tự động nhập vào MariaDB.
@@ -93,7 +97,7 @@ Tài khoản seeded **chỉ dùng trên máy local**: `admin@easyhome.vn` / `Adm
 ## 6. Bản source và hạn chế môi trường
 
 - Source bàn giao là bản chỉnh sửa dựa trên các file EasyHome nhánh `main` đã đối chiếu. ZIP không kèm `.git`, dữ liệu `.env`, database hay ảnh CCCD.
-- File `frontend/package-lock.json` gốc không có trong bản ZIP nguồn do môi trường không tải được archive binary đầy đủ. Chạy `npm install` để tái tạo lock; không dùng `npm ci` cho đến khi có file lock hợp lệ.
+- `frontend/package-lock.json` có trong checkout hiện tại; nên dùng `npm ci` trong CI để cài đúng phiên bản đã khóa.
 - Thư mục `private-uploads/` **không** được push lên GitHub và phải được backup/thiết lập phân quyền riêng khi vận hành.
 - Xem `TEST_REPORT.md` và `PHASE1_CHANGELOG.md` để biết chính xác kiểm thử đã chạy và các điểm cần nghiệm thu.
 

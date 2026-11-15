@@ -10,7 +10,7 @@ export function Block({ children, title, detail }) { return <section className="
 export async function upload(path, file) {
   const form = new FormData(); form.append('file', file)
   const res = await fetch('/api' + path, { method: 'POST', headers: { Authorization: 'Bearer ' + getSession()?.token }, body: form })
-  if (!res.ok) { let body; try { body = await res.json() } catch { body = {} } throw new Error(body.message || body.detail || `Upload lỗi (${res.status})`) }
+  if (!res.ok) { let body; try { body = await res.json() } catch { body = {} } if(body.code&&typeof window!=='undefined')window.dispatchEvent(new CustomEvent('easyhome:session-issue',{detail:body}));const error=new Error(body.message || body.detail || `Upload lỗi (${res.status})`);error.code=body.code;throw error }
   return res.json()
 }
 

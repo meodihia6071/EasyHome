@@ -47,8 +47,9 @@ public class SecurityConfig {
   @Bean SecurityFilterChain security(HttpSecurity http)throws Exception{
     return http.csrf(c->c.disable()).cors(c->{}).sessionManagement(s->s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
       .authorizeHttpRequests(a->a
-        .requestMatchers("/api/auth/register","/api/auth/login","/api/auth/verify-email","/api/auth/resend-email","/error").permitAll()
-        .requestMatchers(HttpMethod.GET,"/api/listings","/api/listings/{id}","/api/plans","/api/media/{id}").permitAll()
+        .requestMatchers("/api/auth/register","/api/auth/login","/api/auth/verify-email","/api/auth/resend-email",
+          "/api/auth/password/forgot","/api/auth/password/reset","/error").permitAll()
+        .requestMatchers(HttpMethod.GET,"/api/listings","/api/listings/{id}","/api/listings/locations","/api/plans","/api/media/{id}").permitAll()
         .anyRequest().authenticated())
       .oauth2ResourceServer(o->o.jwt(j->{})).build();
   }

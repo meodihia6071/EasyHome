@@ -1,28 +1,38 @@
 # TEST REPORT — EasyHome V2 / Phase 1
 
-Ngày lập: 12/11/2026.
+Ngày lập: 15/11/2026.
 
 ## Kiểm thử đã chạy
 
 | Kiểm tra | Kết quả | Bằng chứng |
 |---|---|---|
-| Domain rules `bash scripts/test-core.sh` | **PASS 198/198** | `verification/RulesChecks.java` |
-| Java parse 41 source và test `.java` | **PASS cú pháp** | JDK 21 JavaCompiler parse |
-| React JSX/JS parse 4 file chính | **PASS cú pháp** | TypeScript compiler parser |
-| Maven `mvn clean test` | **CHƯA CHẠY** | Môi trường không có Maven/dependencies |
-| React `npm install && npm run build` | **CHƯA CHẠY** | Môi trường không truy cập npm registry |
+| Domain rules `scripts/test-core.ps1` | **PASS 198/198** | `verification/RulesChecks.java`; PowerShell dùng `ExecutionPolicy Bypass` cho tiến trình này |
+| Maven `mvn.cmd -q clean test` | **PASS 11/11** | Build sạch, H2 in-memory; 0 failure, 0 error |
+| React `npm.cmd run build` | **PASS build** | Vite 7.3.8, production bundle thành công |
 | MariaDB XAMPP/Flyway | **CHƯA CHẠY** | Không có máy chủ MariaDB local trong container |
 | Browser E2E / phân quyền trên môi trường live | **CHƯA CHẠY** | Không khởi động được backend/frontend tích hợp |
 
-**Không được coi kết quả parse là compile/build thành công.**
+## Kiểm thử sau cập nhật yêu cầu — 15/11/2026
 
-## Kịch bản đã viết vào MarketplaceFlowTest.java (CHƯA CHẠY)
+| Kiểm tra | Kết quả | Chi tiết |
+|---|---|---|
+| `mvn.cmd -q clean test` | **PASS** | 11 test, 0 failure, 0 error; build sạch trên H2 in-memory; gồm OTP tự đăng nhập, khóa tài khoản, reset mật khẩu, thu hồi JWT cũ và tư cách tin/địa điểm |
+| `npm.cmd run build` | **PASS** | Vite 7.3.8; 1.618 modules transformed; production bundle thành công |
+| MariaDB/XAMPP migration/runtime | **CHƯA CHẠY** | Chưa có DB server kiểm chứng ở môi trường này |
+| Gmail SMTP reset link | **CHƯA CHẠY** | Test sử dụng email console của profile test |
+| Browser E2E / khóa tài khoản đang hoạt động | **CHƯA CHẠY** | Backend session-status được kiểm tra qua MockMvc; giao diện cần thử trên trình duyệt |
+
+Các kết quả parser lịch sử không thay thế build; cập nhật này đã chạy Maven tests và Vite production build thành công.
+
+## Kịch bản trong MarketplaceFlowTest.java (đã chạy 15/11/2026)
 
 1. OTP đăng ký, chặn đăng nhập khi email chưa xác thực, số điện thoại trùng chuẩn hóa và OTP sai.
 2. Đăng ký → OTP email → upload hồ sơ danh tính → Admin duyệt → upload tin → mock QR → gửi kiểm duyệt → Moderator duyệt → công khai.
 3. Thanh toán trước, từ chối sau, hoàn tiền vào số dư đúng một lần, chặn từ chối lặp.
 4. Chỉ được dùng FREE một lần đối với tin có quyền lợi đã kích hoạt.
 5. Khóa tài khoản theo hạn, kiểm tra lịch sử, mở lại và đăng nhập.
+6. Reset mật khẩu qua token, đăng nhập bằng mật khẩu mới, từ chối JWT cũ và chặn dùng lại token.
+7. Chọn tư cách BROKER trên một tin và truy vấn danh sách vị trí ACTIVE.
 
 ## Bắt buộc chạy trên Windows trước khi thay source chính
 

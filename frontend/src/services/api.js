@@ -3,6 +3,9 @@ export const getSession = () => {
   try { return JSON.parse(localStorage.getItem(KEY) || 'null') } catch { return null }
 }
 export function saveSession(session) { if (session) localStorage.setItem(KEY, JSON.stringify(session)); else localStorage.removeItem(KEY) }
+function reportSessionIssue(payload){
+  if(typeof window!=='undefined'&&payload?.code)window.dispatchEvent(new CustomEvent('easyhome:session-issue',{detail:payload}))
+}
 export async function api(path, options = {}) {
   const { method = 'GET', body, token = getSession()?.token } = options
   const publicGet = method === 'GET' && (/^\/listings(?:\/\d+)?(?:\?.*)?$/.test(path) || path === '/plans')
@@ -17,7 +20,12 @@ export async function api(path, options = {}) {
   let result = null
   const raw = await res.text()
   if (raw) { try { result = JSON.parse(raw) } catch { result = null } }
-  if (!res.ok) throw new Error(result?.message || result?.detail || (res.status === 401 ? 'Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại.' : `Yêu cầu thất bại (${res.status}).`))
+  if (!res.ok) {
+    if(result?.code==='ACCOUNT_LOCKED')reportSessionIssue(result)
+    else if(res.status===401&&token)reportSessionIssue({code:'SESSION_EXPIRED',message:'Phiên đăng nhập đã hết hạn.'})
+    const error=new Error(result?.message || result?.detail || (res.status === 401 ? 'Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại.' : `Yêu cầu thất bại (${res.status}).`))
+    error.code=result?.code;error.details=result;throw error
+  }
   return result
 }
 export const money = amount => Number(amount || 0).toLocaleString('vi-VN') + ' đ'

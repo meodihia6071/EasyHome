@@ -33,3 +33,9 @@
 Không tự đẩy repository GitHub, không xóa database. Trước khi thay source thật, chạy toàn bộ kiểm thử trên bản sao project và database thử nghiệm. Khi có log BUILD FAILURE, sửa lỗi theo log trước khi sử dụng môi trường chính.
 
 - Bổ sung `scripts/init-local-db.ps1`, `start-dev.bat` tự kiểm tra/tạo MariaDB local không phá dữ liệu, cập nhật hướng dẫn. Chưa kiểm thử XAMPP trên máy Windows.
+
+## Cập nhật giao diện và tài khoản — 15/11/2026
+- Chuyển chọn OWNER/BROKER/AGENCY từ tài khoản sang từng tin; hướng dẫn tải giấy tờ liên quan ở màn hình ảnh/minh chứng.
+- Bổ sung hiện/ẩn mật khẩu, quên/đặt lại mật khẩu, tự đăng nhập sau OTP, modal khóa tài khoản và kiểm tra session định kỳ.
+- Bổ sung gợi ý tỉnh/thành/quận theo tin đang hoạt động; tự tìm khi nhập/chọn, lọc theo khoảng giá; dùng Be Vietnam Pro cho tiếng Việt.
+- Thêm migration Flyway V3–V5 và regression tests; reset mật khẩu thu hồi JWT cũ. Maven 11/11 và Vite production build đã PASS; SMTP thật, MariaDB/XAMPP và browser E2E vẫn cần nghiệm thu riêng.

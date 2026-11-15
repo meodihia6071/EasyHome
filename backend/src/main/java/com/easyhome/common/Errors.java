@@ -17,6 +17,12 @@ import org.springframework.http.converter.HttpMessageNotReadableException;
 
 @RestControllerAdvice
 public class Errors {
+  @ExceptionHandler(AccountLockedException.class)
+  ResponseEntity<Map<String,Object>> locked(AccountLockedException e){
+    return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of(
+      "code","ACCOUNT_LOCKED","message",e.getMessage(),"reason",e.reason()==null?"Không có lý do được ghi nhận":e.reason(),
+      "until",e.until()==null?"Vĩnh viễn":e.until().toString()));
+  }
   @ExceptionHandler(BusinessException.class)
   ResponseEntity<Map<String,String>> business(BusinessException e){return ResponseEntity.badRequest().body(Map.of("message",e.getMessage()));}
   @ExceptionHandler(MethodArgumentNotValidException.class)

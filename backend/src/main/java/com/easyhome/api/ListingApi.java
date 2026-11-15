@@ -29,12 +29,12 @@ public class ListingApi {
     listings=l;properties=p;identity=i;audits=a;this.billing=billing;this.media=media;
   }
   public record Form(String title,String description,String city,String district,String address,String type,
-    BigDecimal monthlyRent,Double area,Integer bedrooms,String imageUrl){}
+    BigDecimal monthlyRent,Double area,Integer bedrooms,String imageUrl,PublisherType publisherType){}
   public record View(Long id,Long propertyId,Long ownerId,String ownerName,String ownerType,boolean ownerVerified,String phone,
     String title,String description,String city,String district,String type,BigDecimal monthlyRent,Double area,
     Integer bedrooms,String imageUrl,String status,String availability,String plan,int priority,
     Instant publishedAt,Instant expiresAt,String reviewNote,Instant createdAt) {
-    static View from(Listing l){Property p=l.getProperty();User u=l.getOwner();return new View(l.getId(),p.getId(),u.getId(),u.getFullName(),u.getPublisherType().name(),u.isVerified(),u.getPhone(),
+    static View from(Listing l){Property p=l.getProperty();User u=l.getOwner();PublisherType publisher=l.publisherType==null?PublisherType.OWNER:l.publisherType;return new View(l.getId(),p.getId(),u.getId(),u.getFullName(),publisher.name(),u.isVerified(),u.getPhone(),
       l.getTitle(),l.getDescription(),p.getCity(),p.getDistrict(),p.getType(),p.getMonthlyRent(),p.getArea(),p.getBedrooms(),p.getImageUrl(),l.getStatus().name(),p.getAvailability().name(),
       l.getPlan()==null?null:l.getPlan().name(),l.getPriority(),l.getPublishedAt(),l.getExpiresAt(),l.getReviewNote(),l.getCreatedAt());}
   }
@@ -45,6 +45,10 @@ public class ListingApi {
     p.updateDetails(f.city().trim(),f.district().trim(),f.address().trim(),f.type(),f.monthlyRent(),
       f.area(),f.bedrooms(),f.imageUrl()==null?"":f.imageUrl().trim());l.title=f.title().trim();l.description=f.description().trim();
   }
+  public record Locations(List<String> cities,List<String> districts){}
+  @GetMapping("/api/listings/locations") @Transactional(readOnly=true)
+  public Locations locations(){return new Locations(listings.findActiveCities(ListingStatus.ACTIVE,Availability.AVAILABLE,Instant.now()),
+      listings.findActiveDistricts(ListingStatus.ACTIVE,Availability.AVAILABLE,Instant.now()));}
   @GetMapping("/api/listings") @Transactional(readOnly=true)
   public Page<View> browse(@RequestParam(required=false) String q,@RequestParam(required=false) String city,
        @RequestParam(required=false) String type,@RequestParam(required=false) BigDecimal minPrice,
@@ -85,17 +89,17 @@ public class ListingApi {
   @GetMapping("/api/my/listings/{id}") @Transactional(readOnly=true)
   public Form editForm(@AuthenticationPrincipal Jwt jwt,@PathVariable Long id){
     Listing l=own(id,identity.current(jwt));Property p=l.property;
-    return new Form(l.title,l.description,p.getCity(),p.getDistrict(),p.getAddress(),p.getType(),p.getMonthlyRent(),p.getArea(),p.getBedrooms(),p.getImageUrl());
+    return new Form(l.title,l.description,p.getCity(),p.getDistrict(),p.getAddress(),p.getType(),p.getMonthlyRent(),p.getArea(),p.getBedrooms(),p.getImageUrl(),l.publisherType==null?PublisherType.OWNER:l.publisherType);
   }
   @PostMapping("/api/my/listings") @Transactional
   public View create(@AuthenticationPrincipal Jwt jwt,@RequestBody Form f){
     User u=identity.current(jwt);validate(f);
-    Property p=new Property();p.owner=u;Listing l=new Listing();l.owner=u;l.property=p;apply(p,l,f);
+    Property p=new Property();p.owner=u;Listing l=new Listing();l.owner=u;l.property=p;l.publisherType=f.publisherType()==null?PublisherType.OWNER:f.publisherType();apply(p,l,f);
     properties.save(p);listings.save(l);audits.save(new Audit(u.id,"CREATE_DRAFT","listing:"+l.id));return View.from(l);
   }
   @PutMapping("/api/my/listings/{id}") @Transactional
   public View update(@AuthenticationPrincipal Jwt jwt,@PathVariable Long id,@RequestBody Form f){
-    User u=identity.current(jwt);Listing l=own(id,u);Rules.edit(l.status);validate(f);apply(l.property,l,f);l.reviewNote=null;return View.from(l);
+    User u=identity.current(jwt);Listing l=own(id,u);Rules.edit(l.status);validate(f);apply(l.property,l,f);if(f.publisherType()!=null)l.publisherType=f.publisherType();l.reviewNote=null;return View.from(l);
   }
   @PostMapping("/api/my/listings/{id}/submit") @Transactional
   public View submit(@AuthenticationPrincipal Jwt jwt,@PathVariable Long id){
@@ -118,7 +122,7 @@ public class ListingApi {
     Rules.check(!listings.existsByProperty_IdAndStatusIn(original.property.getId(),List.of(
       ListingStatus.DRAFT,ListingStatus.REJECTED,ListingStatus.NEEDS_UPDATE,ListingStatus.PENDING_REVIEW,ListingStatus.AWAITING_PAYMENT,ListingStatus.ACTIVE,ListingStatus.PAUSED)),
       "Bất động sản này đã có tin đang xử lý hoặc hiển thị");
-    Listing fresh=new Listing();fresh.property=original.property;fresh.owner=u;fresh.title=original.title;fresh.description=original.description;
+    Listing fresh=new Listing();fresh.property=original.property;fresh.owner=u;fresh.title=original.title;fresh.description=original.description;fresh.publisherType=original.publisherType;
     listings.save(fresh);audits.save(new Audit(u.id,"RELIST_DRAFT","listing:"+fresh.id));return View.from(fresh);
   }
   @PostMapping("/api/my/listings/{id}/pause") @Transactional
