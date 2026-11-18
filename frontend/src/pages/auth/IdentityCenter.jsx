@@ -5,8 +5,9 @@ import { useAuth } from '../../App.jsx'
 import { Alert, Block, upload, showPrivateImage, PrivateImagePreview } from '../../components/shared-phase1.jsx'
 
 export function IdentityCenter() {
+  const {refreshProfile}=useAuth()
   const [item, setItem] = useState(null), [error, setError] = useState(''), [info, setInfo] = useState(''), [busy, setBusy] = useState(false),[preview,setPreview]=useState('')
-  async function reload() { setItem(await api('/identity/me')) }
+  async function reload() { setItem(await api('/identity/me'));try{await refreshProfile()}catch{} }
   useEffect(() => { reload().catch(e => setError(e.message)) }, [])
   async function act(fn) { setBusy(true); setError(''); setInfo(''); try { await fn(); await reload(); setInfo('Thao tác đã lưu.') } catch (e) { setError(e.message) } finally { setBusy(false) } }
   return <div className="container phase-page"><Block title="Xác thực danh tính người đăng" detail="Xác thực một lần; mỗi tin vẫn phải có ảnh và minh chứng tài sản riêng. Giấy tờ không công khai."><Alert error={error} info={info}/>

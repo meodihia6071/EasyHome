@@ -6,11 +6,11 @@
 
 **Đã viết source:** Email OTP và đặt lại mật khẩu qua SMTP; xác thực người đăng với 2 ảnh tài liệu riêng; ảnh đăng tin và minh chứng riêng; gói đăng tin; nạp VietQR chờ Admin đối soát rồi mới cộng số dư; yêu cầu rút chờ duyệt và chỉ trừ số dư sau khi Admin xác nhận đã chuyển; kiểm duyệt, từ chối/hoàn tiền, yêu cầu bổ sung 72 giờ; khóa/mở tài khoản có lịch sử; bảng giá lưu DB; Flyway bổ sung bảng và sửa cột trạng thái cũ.
 
-**Cập nhật 16/11/2026 theo `YeuCauUpdate.docx`:** có hiện/ẩn mật khẩu, đặt lại mật khẩu bằng liên kết dùng một lần, tự đăng nhập sau xác thực OTP, cảnh báo và tự thoát phiên khi tài khoản bị khóa, chọn tư cách theo từng tin, gợi ý địa điểm và tự lọc theo khoảng giá.
+**Cập nhật 18/11/2026 theo `YeuCauUpdate.docx`:** OTP đăng nhập bắt buộc cho Admin/Staff, OTP đăng ký tự đăng nhập sau xác thực, đặt lại mật khẩu dùng liên kết một lần, popup trạng thái khóa/danh tính, lọc trực tiếp và chọn tư cách/giấy tờ theo từng tin.
 
 **Nạp/rút đang dùng đối soát thủ công.** VietQR tạo lệnh chuyển khoản; ứng dụng không nhận webhook hay tự xác minh giao dịch ngân hàng. Admin chỉ xác nhận sau khi kiểm tra tiền đã vào; với rút tiền, Admin chuyển khoản ngoài ứng dụng rồi xác nhận để ghi sổ. Chưa nghiệm thu bảo mật dữ liệu định danh hoặc vận hành tài chính production.
 
-**Kiểm thử cập nhật 16/11/2026:** Java rules 198/198 PASS; Maven/H2 integration 14/14 PASS; Vite production build PASS. **MariaDB/XAMPP migration, Gmail SMTP gửi thật và browser E2E vẫn chưa được xác minh.**
+**Kiểm thử cập nhật 18/11/2026:** Java rules 198/198 PASS; Maven/H2 integration 15/15 PASS; Vite production build PASS. Bundle chính 347.39 kB, dữ liệu địa giới tải riêng 154.85 kB. **MariaDB/Flyway, Gmail SMTP gửi thật và browser E2E vẫn chưa được xác minh.**
 
 ## 1. Cài đặt và chạy local trên Windows
 
@@ -46,7 +46,7 @@ $env:DB_PASSWORD = ''
 
 ## 2. Luồng thử nghiệm đầy đủ
 
-1. **Đăng ký:** mở `/register`. Email và số điện thoại không được trùng. Sau khi đăng ký, chuyển đến `/verify-email`. Mã OTP 6 số được gửi tới email đăng ký bằng SMTP. Cấu hình Gmail theo `note/GMAIL_OTP_SETUP.md`. OTP hết hạn sau 5 phút, gửi lại sau 60 giây, tối đa 5 email OTP/24h và 5 lần nhập sai/mã. Xác thực thành công sẽ tự đăng nhập. Tài khoản chưa xác thực hết thời hạn chờ 24 giờ sẽ được dọn bằng scheduler.
+1. **Đăng ký/đăng nhập nhân viên:** mở `/register`. Email và số điện thoại không được trùng. OTP đăng ký được gửi tới email bằng SMTP, hết hạn sau 5 phút, gửi lại sau 60 giây và tối đa 5 lần nhập sai. Tài khoản Admin/Staff sau khi nhập đúng mật khẩu sẽ phải xác thực thêm OTP đăng nhập; OTP hết hạn sau 5 phút, dùng một lần, giới hạn 5 lần gửi/24 giờ và 5 lần nhập sai. Cấu hình Gmail theo `note/GMAIL_OTP_SETUP.md`. Xác thực thành công sẽ tự đăng nhập. Tài khoản đăng ký chưa xác thực quá 24 giờ sẽ được dọn bằng scheduler.
 2. **Xác thực người đăng:** đăng nhập rồi mở `/identity`. Chọn `Bắt đầu xác thực`, tải **hai ảnh thử nghiệm** (JPEG/PNG), nhấn gửi. Admin đăng nhập → `/staff` → xem từng ảnh, duyệt hoặc yêu cầu bổ sung. Một tài khoản duyệt thành công chỉ phải xác thực lần nữa nếu sau này bị thu hồi/quy định yêu cầu.
 3. **Tạo tin:** mở `/new`, nhập thông tin, chọn tư cách cho tin (chủ nhà/môi giới/đơn vị quản lý) và lưu `DRAFT`. Màn hình tiếp theo yêu cầu tải giấy tờ phù hợp vào `EVIDENCE` (giấy tờ nhà đất/chứng chỉ hành nghề/ủy quyền đơn vị) cùng ít nhất **hai ảnh công khai** (`PUBLIC`). Mỗi file tối đa 6 MB, JPEG/PNG đã xác minh cấu trúc.
 4. **Mua gói:** `/checkout/:id`. Chọn FREE (0đ/7 ngày một lần), STANDARD (29.000đ/15 ngày), VIP Bạc (79.000đ/15 ngày), VIP Vàng (149.000đ/15 ngày) hoặc VIP Kim Cương (299.000đ/15 ngày). Có thể dùng `/wallet` để nạp qua VietQR. Sau khi chuyển đúng số tiền và nội dung tham chiếu, bấm xác nhận; Admin đối soát giao dịch và chỉ khi duyệt số dư mới được cộng. Thanh toán gói bằng số dư đã được duyệt.
@@ -69,7 +69,7 @@ Tài khoản seeded **chỉ dùng trên máy local**: `admin@easyhome.vn` / `Adm
 
 ## 4. Database và nâng cấp source cũ
 
-- Flyway bổ sung schema qua `V1`–`V7`; V4 thêm loại người đăng theo tin, V5 thêm phiên bản xác thực để thu hồi JWT sau khi đặt lại mật khẩu, V6 mở rộng cột trạng thái/plan legacy, V7 tạo số dư khả dụng mới ở mức 0 để tách khỏi số dư mock cũ. Migration cột kiểm tra schema cũ trước khi thêm.
+- Flyway bổ sung schema qua `V1`–`V9`; V4 thêm loại người đăng theo tin, V5 phiên bản xác thực, V6 mở rộng cột trạng thái/plan legacy, V7 tách số dư khả dụng khỏi mock cũ, V8 thêm challenge OTP đăng nhập Admin/Staff, V9 lưu nội dung chi tiết trong nhật ký quản trị.
 - Trên máy dev, `ddl-auto=update` còn tự bổ sung trường vào các bảng V1 (`users`, `listings`, `service_orders`). **Chưa có migration production đầy đủ cho các trường cũ**, nên profile `prod` (`ddl-auto=validate`) có thể không khởi động nếu chưa chuyển đổi schema.
 - Dữ liệu `PENDING_REVIEW`/`AWAITING_PAYMENT` thuộc luồng cũ **không tự chuyển** thành các đơn hợp lệ của luồng V2. Sau khi backup, phải đối chiếu trạng thái các tin chờ xử lý trước khi chạy V2 trên database cũ.
 - Dữ liệu H2 file cũ không được tự động nhập vào MariaDB.
@@ -81,13 +81,16 @@ Tài khoản seeded **chỉ dùng trên máy local**: `admin@easyhome.vn` / `Adm
 
 | Nhóm | Endpoint |
 |---|---|
-| OTP | `POST /api/auth/register`, `/api/auth/verify-email`, `/api/auth/resend-email` |
+| OTP | `POST /api/auth/register`, `/api/auth/verify-email`, `/api/auth/resend-email`, `/api/auth/login`, `/api/auth/login/verify-otp`, `/api/auth/login/resend-otp` |
 | Identity | `GET /api/identity/me`, `POST /api/identity/start`, `/api/identity/{id}/upload`, `/api/identity/{id}/submit` |
 | Identity Admin | `GET /api/admin/identity/pending`, `POST /api/admin/identity/{id}/review` |
 | Media | `POST /api/my/listings/{id}/media`, `GET /api/my/listings/{id}/media`, `GET /api/media/{id}` |
 | Review | `GET /api/admin/listings/{id}/moderation-detail`, `POST /api/admin/listings/{id}/needs-update`, `/approve`, `/reject` |
 | Orders | `POST /api/orders`, `/api/orders/{id}/wallet-pay`, `/api/dev/orders/{id}/confirm`, `/api/dev/orders/{id}/fail` |
-| Wallet | `GET /api/wallet`, `/api/wallet/ledger`, `POST /api/dev/wallet/topup` |
+| Wallet | `GET /api/wallet`, `/api/wallet/ledger`, `GET/POST /api/wallet/deposits`, `POST /api/wallet/deposits/{id}/submitted` |
+| Wallet Admin | `GET /api/admin/wallet/deposits`, `POST /api/admin/wallet/deposits/{id}/approve`, `GET /api/admin/audit` (lọc, phân trang) |
+| Lịch sử tin | `GET /api/my/listings/{id}/history` (chủ tin; lịch sử tạo/sửa/gửi duyệt/ra quyết định/ẩn/đóng) |
+| Lịch sử nhân viên | `GET /api/staff/audit` (Admin xem toàn bộ; Moderator chỉ xem thao tác của mình) |
 | Withdrawal | `GET/POST /api/wallet/withdrawals`, `GET /api/finance/withdrawals`, `POST /api/finance/withdrawals/{id}/decision` |
 | Account locks | `POST /api/admin/users/{id}/lock`, `/unlock`, `GET /api/admin/users/{id}/lock-history` |
 | Pricing | `GET /api/plans`, `POST /api/admin/plans/{code}` |

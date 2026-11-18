@@ -25,7 +25,7 @@ public class ModerationService {
   }
   void record(Listing l,Long reviewer,String decision,String note){
     ListingReview r=new ListingReview();r.listing=l;r.revision=l.reviewRevision;r.reviewerId=reviewer;r.decision=decision;r.note=note;
-    reviews.save(r);audits.save(new Audit(reviewer==null?l.owner.getId():reviewer,"LISTING_"+decision,"listing:"+l.id));
+    reviews.save(r);audits.save(new Audit(reviewer==null?0L:reviewer,"LISTING_"+decision,"listing:"+l.id,note));
   }
   @Transactional
   public Listing approve(long id,User staff){

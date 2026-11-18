@@ -16,7 +16,9 @@ public class Audit {
   @Column(nullable=false) public Long actorId;
   @Column(nullable=false,length=70) public String action;
   @Column(nullable=false,length=80) public String target;
+  @Column(length=500) public String details;
   @Column(nullable=false) public Instant createdAt=Instant.now();
   public Audit() {}
-  public Audit(Long actorId,String action,String target){this.actorId=actorId;this.action=action;this.target=target;}
+  public Audit(Long actorId,String action,String target){this(actorId,action,target,null);}
+  public Audit(Long actorId,String action,String target,String details){this.actorId=actorId;this.action=action;this.target=target;this.details=details;}
 }

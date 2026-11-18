@@ -28,7 +28,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 /** Integration tests for the approved Phase-1 flow. Requires Maven dependencies. */
-@SpringBootTest(properties={"spring.datasource.url=jdbc:h2:mem:easyhome_v2;DB_CLOSE_DELAY=-1", "spring.jpa.hibernate.ddl-auto=create-drop", "spring.flyway.enabled=false", "app.seed-demo=true", "app.mock-payments=true", "app.email-mode=console"})
+@SpringBootTest(properties={"spring.datasource.url=jdbc:h2:mem:easyhome_v2;DB_CLOSE_DELAY=-1", "spring.jpa.hibernate.ddl-auto=create-drop", "spring.flyway.enabled=false", "app.seed-demo=true", "app.mock-payments=true", "app.email-mode=console", "app.staff-login-otp.max-daily-sends=100"})
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
 class MarketplaceFlowTest {
@@ -37,6 +37,7 @@ class MarketplaceFlowTest {
   @Autowired Listings listings;
   @Autowired Wallets wallets;
   @Autowired Users users;
+  @Autowired StaffLoginChallenges staffLoginChallenges;
   private static final byte[] PNG=Base64.getDecoder().decode("iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAFklEQVR4nGNcUJHCwMDAxMDAwMDAAAASNgGAoiIFpwAAAABJRU5ErkJggg==");
   private static final String VALID="""
       {"title":"Căn hộ kiểm thử hai phòng ngủ","description":"Căn hộ có nội thất cơ bản, ban công rộng, ảnh minh chứng thực tế và tiện ích đầy đủ.",
@@ -46,9 +47,20 @@ class MarketplaceFlowTest {
   private String body(Map<String,Object> m)throws Exception{return mapper.writeValueAsString(m);}
   private JsonNode parse(String s)throws Exception{return mapper.readTree(s);}
   private String login(String email,String password)throws Exception{
-    var r=mvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON)
-        .content(body(Map.of("email",email,"password",password)))).andExpect(status().isOk()).andReturn();
-    return parse(r.getResponse().getContentAsString()).path("token").asText();
+    ByteArrayOutputStream output=new ByteArrayOutputStream();PrintStream previous=System.out;String response;
+    try{
+      System.setOut(new PrintStream(output,true,StandardCharsets.UTF_8));
+      var r=mvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON)
+          .content(body(Map.of("email",email,"password",password)))).andExpect(status().isOk()).andReturn();
+      response=r.getResponse().getContentAsString();
+    }finally{System.setOut(previous);}
+    JsonNode result=parse(response);
+    if(!result.path("requiresOtp").asBoolean())return result.path("token").asText();
+    Matcher otp=Pattern.compile("EASYHOME STAFF LOGIN OTP.*?=> (\\d{6})").matcher(output.toString(StandardCharsets.UTF_8));
+    assertTrue(otp.find(),"Staff login must send a one-time code");
+    var verified=mvc.perform(post("/api/auth/login/verify-otp").contentType(MediaType.APPLICATION_JSON)
+      .content(body(Map.of("challengeId",result.path("challengeId").asText(),"code",otp.group(1))))).andExpect(status().isOk()).andReturn();
+    return parse(verified.getResponse().getContentAsString()).path("token").asText();
   }
   private String admin()throws Exception{return login("admin@easyhome.vn","Admin@12345");}
   private String mod()throws Exception{return login("mod@easyhome.vn","Mod@123456");}
@@ -108,6 +120,41 @@ class MarketplaceFlowTest {
     mvc.perform(post("/api/auth/verify-email").contentType(MediaType.APPLICATION_JSON)
       .content(body(Map.of("email",email,"code","000000")))).andExpect(status().isBadRequest());
   }
+  @Test void staffLoginRequiresOneTimeEmailOtp()throws Exception{
+    ByteArrayOutputStream output=new ByteArrayOutputStream();PrintStream previous=System.out;JsonNode pending;
+    try{
+      System.setOut(new PrintStream(output,true,StandardCharsets.UTF_8));
+      var response=mvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON)
+        .content(body(Map.of("email","admin@easyhome.vn","password","Admin@12345")))).andExpect(status().isOk()).andReturn();
+      pending=parse(response.getResponse().getContentAsString());
+    }finally{System.setOut(previous);}
+    assertTrue(pending.path("requiresOtp").asBoolean());assertTrue(pending.path("token").isMissingNode());
+    Matcher otp=Pattern.compile("EASYHOME STAFF LOGIN OTP.*?=> (\\d{6})").matcher(output.toString(StandardCharsets.UTF_8));assertTrue(otp.find());
+    String challenge=pending.path("challengeId").asText();
+    String wrongCode=otp.group(1).equals("000000")?"000001":"000000";
+    mvc.perform(post("/api/auth/login/verify-otp").contentType(MediaType.APPLICATION_JSON)
+      .content(body(Map.of("challengeId",challenge,"code",wrongCode)))).andExpect(status().isBadRequest());
+    mvc.perform(post("/api/auth/login/resend-otp").contentType(MediaType.APPLICATION_JSON)
+      .content(body(Map.of("challengeId",challenge)))).andExpect(status().isBadRequest());
+    StaffLoginChallenge stored=staffLoginChallenges.findByUser_IdAndConsumedFalse(users.findByEmailIgnoreCase("admin@easyhome.vn").orElseThrow().id).get(0);
+    stored.resendAt=java.time.Instant.now().minusSeconds(1);staffLoginChallenges.save(stored);
+    ByteArrayOutputStream resentOutput=new ByteArrayOutputStream();PrintStream resendPrevious=System.out;JsonNode resent;
+    try{
+      System.setOut(new PrintStream(resentOutput,true,StandardCharsets.UTF_8));
+      var response=mvc.perform(post("/api/auth/login/resend-otp").contentType(MediaType.APPLICATION_JSON)
+        .content(body(Map.of("challengeId",challenge)))).andExpect(status().isOk()).andReturn();
+      resent=parse(response.getResponse().getContentAsString());
+    }finally{System.setOut(resendPrevious);}
+    Matcher resentOtp=Pattern.compile("EASYHOME STAFF LOGIN OTP.*?=> (\\d{6})").matcher(resentOutput.toString(StandardCharsets.UTF_8));assertTrue(resentOtp.find());
+    assertNotEquals(challenge,resent.path("challengeId").asText());
+    mvc.perform(post("/api/auth/login/verify-otp").contentType(MediaType.APPLICATION_JSON)
+      .content(body(Map.of("challengeId",challenge,"code",otp.group(1))))).andExpect(status().isBadRequest());
+    var verified=mvc.perform(post("/api/auth/login/verify-otp").contentType(MediaType.APPLICATION_JSON)
+      .content(body(Map.of("challengeId",resent.path("challengeId").asText(),"code",resentOtp.group(1))))).andExpect(status().isOk()).andReturn();
+    assertFalse(parse(verified.getResponse().getContentAsString()).path("token").asText().isBlank());
+    mvc.perform(post("/api/auth/login/verify-otp").contentType(MediaType.APPLICATION_JSON)
+      .content(body(Map.of("challengeId",resent.path("challengeId").asText(),"code",resentOtp.group(1))))).andExpect(status().isBadRequest());
+  }
   @Test void identityThenPayThenApproveAndPublicVisible()throws Exception{
     String token=registerAndVerify(),admin=admin(),moderator=mod();
     long initialId=create(token);
@@ -143,8 +190,29 @@ class MarketplaceFlowTest {
     postJson("/api/admin/identity/"+id+"/review",admin,Map.of("decision","NEEDS_UPDATE","note","Ảnh mặt sau chưa đủ rõ, vui lòng chụp lại"));
     mvc.perform(get("/api/identity/me").header("Authorization","Bearer "+owner)).andExpect(status().isOk())
       .andExpect(jsonPath("$.status").value("NEEDS_UPDATE")).andExpect(jsonPath("$.note").value("Ảnh mặt sau chưa đủ rõ, vui lòng chụp lại"));
-    mvc.perform(get("/api/admin/audit").header("Authorization","Bearer "+admin)).andExpect(status().isOk())
-      .andExpect(jsonPath("$[?(@.action=='IDENTITY_NEEDS_UPDATE' && @.target=='identity:"+id+"')]").isNotEmpty());
+    mvc.perform(get("/api/admin/audit").param("action","IDENTITY_NEEDS_UPDATE").param("target","identity:"+id)
+      .header("Authorization","Bearer "+admin)).andExpect(status().isOk())
+      .andExpect(jsonPath("$.content[?(@.action=='IDENTITY_NEEDS_UPDATE' && @.target=='identity:"+id+"')].details")
+        .value(org.hamcrest.Matchers.hasItem("Ảnh mặt sau chưa đủ rõ, vui lòng chụp lại")));
+  }
+  @Test void listingReviewHistoryIncludesStaffNoteAndOwnerScope()throws Exception{
+    String owner=registerAndVerify(),admin=admin(),moderator=mod();long identityId=action("/api/identity/start",owner).path("id").asLong();
+    for(int i=0;i<2;i++)mvc.perform(multipart("/api/identity/"+identityId+"/upload").file(new MockMultipartFile("file","card.png","image/png",PNG))
+      .header("Authorization","Bearer "+owner)).andExpect(status().isOk());
+    action("/api/identity/"+identityId+"/submit",owner);
+    postJson("/api/admin/identity/"+identityId+"/review",admin,Map.of("decision","VERIFIED","note","Đã đối chiếu thông tin hồ sơ"));
+    long id=prepare(owner),order=order(owner,id,"STANDARD");action("/api/dev/orders/"+order+"/confirm",owner);action("/api/my/listings/"+id+"/submit",owner);
+    String note="Ảnh minh chứng chưa thể hiện rõ địa chỉ bất động sản";
+    postJson("/api/admin/listings/"+id+"/needs-update",moderator,Map.of("note",note));
+    mvc.perform(get("/api/my/listings/"+id+"/history").header("Authorization","Bearer "+owner)).andExpect(status().isOk())
+      .andExpect(jsonPath("$[?(@.action=='LISTING_NEEDS_UPDATE')].details").value(org.hamcrest.Matchers.hasItem(note)))
+      .andExpect(jsonPath("$[?(@.action=='LISTING_NEEDS_UPDATE')].actorName").value(org.hamcrest.Matchers.hasItem("Bộ phận kiểm duyệt")));
+    String other=registerAndVerify();
+    mvc.perform(get("/api/my/listings/"+id+"/history").header("Authorization","Bearer "+other)).andExpect(status().isForbidden());
+    mvc.perform(get("/api/staff/audit").param("action","LISTING_NEEDS_UPDATE").header("Authorization","Bearer "+moderator))
+      .andExpect(status().isOk()).andExpect(jsonPath("$.content[?(@.target=='listing:"+id+"')].details").value(org.hamcrest.Matchers.hasItem(note)));
+    mvc.perform(get("/api/staff/audit").param("actorId","1").param("action","IDENTITY_NEEDS_UPDATE").header("Authorization","Bearer "+moderator))
+      .andExpect(status().isOk()).andExpect(jsonPath("$.totalElements").value(0));
   }
   @Test void rejectRefundsApprovedWalletPaymentExactlyOnce()throws Exception{
     String owner=login("owner@easyhome.vn","Owner@12345"),moderator=mod(),admin=admin();

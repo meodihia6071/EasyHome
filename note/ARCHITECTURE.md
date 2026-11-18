@@ -60,7 +60,7 @@ Các file `pages.jsx`, `phase1.jsx`, `api.js`, `style.css` được giữ nguyê
 1. Bật MySQL/MariaDB trong XAMPP.
 2. Chạy `start-dev.bat` tại thư mục EasyHome. Script hiện có sẽ cố tạo database local trước khi chạy ứng dụng.
 3. Hoặc chạy riêng: `cd backend && mvn clean test && mvn spring-boot:run`, và `cd frontend && npm install && npm run dev`.
-4. Dùng cấu hình `dev` theo README_XAMPP.md khi thử OTP console và thanh toán giả.
+4. Dùng cấu hình SMTP trong `GMAIL_OTP_SETUP.md`. Đăng nhập Admin/Staff yêu cầu OTP; mock-payment bị tắt trong profile `dev`.
 
 ## Kiểm tra đã thực hiện tại môi trường đóng gói
 
@@ -80,4 +80,17 @@ Các file `pages.jsx`, `phase1.jsx`, `api.js`, `style.css` được giữ nguyê
 - `GET /api/listings/locations` cung cấp tỉnh/thành và quận/huyện đang có tin ACTIVE để làm gợi ý.
 - Kiểm thử hiện tại: Maven/H2 **11/11**, Vite build **PASS**, domain rules **198/198**. MariaDB/XAMPP, SMTP thật và browser E2E chưa chạy.
 
+## Cập nhật 18/11/2026
+
+- Admin/Staff phải xác thực OTP qua email sau mật khẩu trước khi nhận JWT. Challenge được lưu hash, hết hạn sau 5 phút, tối đa 5 lần gửi/ngày, 5 lần nhập sai và chỉ dùng một lần.
+- Flyway V8 thêm bảng challenge; API resend có giới hạn 60 giây. Dev/test có thể in mã vào console; dev mặc định dùng SMTP.
+- Maven/H2 **15/15**, Vite production build **PASS**, domain rules **198/198**. MariaDB, Gmail SMTP gửi thật và browser E2E vẫn chưa chạy.
+
 > Tạo thư mục thử nghiệm mới, sao lưu source và database trước khi thay thế. Không chép `target/`, `node_modules/`, `.env` có mật khẩu hoặc thư mục `private-uploads` lên Git.
+
+## Cập nhật 19/11/2026
+
+- Trạng thái CCCD trong popup được đồng bộ qua `/api/auth/me`; `identityStatus` là nguồn chính và profile được làm mới khi vào app, tại trang CCCD và mỗi 30 giây.
+- Audit Admin hỗ trợ lọc và phân trang, hiển thị tên nhân viên cùng nội dung xử lý; `/api/staff/audit` giới hạn Moderator vào log của chính họ.
+- `/api/my/listings/{id}/history` trả lịch sử vòng đời tin và quyết định kiểm duyệt có note/reviewer, chỉ cho chủ tin truy cập.
+- Flyway V9 bổ sung `audit_logs.details`. Test hiện tại: Maven/H2 **16/16**, Vite build **PASS**, business rules **198/198**; MariaDB migration và browser E2E chưa chạy.

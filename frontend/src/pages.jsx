@@ -1,7 +1,7 @@
 export { Card } from './components/shared-core.jsx'
 export { Explore } from './pages/explore/Explore.jsx'
 export { Detail } from './pages/explore/Detail.jsx'
-export { SignIn } from './pages/auth/SignIn.jsx'
+export { SignIn, VerifyStaffOtp } from './pages/auth/SignIn.jsx'
 export { SignUp } from './pages/auth/SignUp.jsx'
 export { ForgotPassword, ResetPassword } from './pages/auth/ResetPassword.jsx'
 export { MyListings } from './pages/listing/MyListings.jsx'

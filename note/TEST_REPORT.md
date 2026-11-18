@@ -87,3 +87,29 @@ Kịch bản ví tích hợp xác nhận: tạo VietQR không tăng số dư; Ad
 Test ví khởi tạo giá trị legacy mock 90.000đ trên tài khoản rồi xác nhận /api/wallet vẫn trả số dư khả dụng 0đ trước khi nạp VietQR được Admin duyệt. Thanh toán VietQR đã duyệt được hoàn lại đúng một lần; từ chối đơn thanh toán mock cũ không tạo số dư khả dụng.
 
 Kiểm thử bổ sung: Admin duyệt hồ sơ danh tính sang NEEDS_UPDATE thì lý do xuất hiện tại /api/identity/me và thao tác IDENTITY_NEEDS_UPDATE xuất hiện trong /api/admin/audit.
+
+## Kiểm thử bổ sung — OTP Admin/Staff, 18/11/2026
+
+| Kiểm tra | Kết quả | Chi tiết |
+|---|---|---|
+| `mvn -Dmaven.repo.local=... clean test` | **PASS 15/15** | Gồm đăng nhập staff nhận OTP, sai mã vẫn ghi nhận attempt, mã đúng cấp session, mã đã dùng bị từ chối; các luồng marketplace trước đó đều pass |
+| `npm.cmd run build` | **PASS** | Vite 7.3.8; bundle chính 347.39 kB (106.64 kB gzip); địa giới là chunk riêng 154.85 kB (29.02 kB gzip); không còn cảnh báo chunk >500 kB |
+| `scripts/test-core.ps1` | **PASS 198/198** | Business rules |
+| Flyway V8 trên MariaDB | **CHƯA CHẠY** | H2 kiểm chứng JPA mapping; cần chạy migration trên MariaDB test riêng |
+| Gmail SMTP gửi thật / browser E2E | **CHƯA CHẠY** | Cần cấu hình SMTP mới trong `.env` và thử trên môi trường chạy thật |
+
+`staffLoginRequiresOneTimeEmailOtp` xác nhận sai mã, giới hạn gửi lại 60 giây, challenge cũ bị vô hiệu sau resend, không phát token trước OTP và mã mới chỉ dùng được một lần. Các helper test đăng nhập Admin/Moderator cũng hoàn tất OTP, nên luồng staff được chạy xuyên suốt các test còn lại.
+
+## Kiểm thử rà soát lịch sử và popup CCCD — 19/11/2026
+
+| Kiểm tra | Kết quả | Chi tiết |
+|---|---|---|
+| Maven/H2 integration | **PASS 16/16** | Bộ test marketplace + OTP; thêm kiểm tra lọc audit, ghi chi tiết yêu cầu bổ sung, lịch sử tin đăng, phân quyền chủ tin và lịch sử nhân viên |
+| `npm.cmd run build` | **PASS** | Vite 7.3.8; JS chính 354.64 kB (108.44 kB gzip), dữ liệu địa giới 154.85 kB (29.02 kB gzip) |
+| `scripts/test-core.ps1` | **PASS 198/198** | Business rules |
+| Flyway V9 trên MariaDB | **CHƯA CHẠY** | H2 kiểm tra entity/endpoint; cần MariaDB test riêng để xác nhận `ADD COLUMN IF NOT EXISTS` trên phiên bản XAMPP đang dùng |
+| Browser E2E | **CHƯA CHẠY** | Cần kiểm tra popup và các filter trên trình duyệt/server thật |
+
+Rà soát lần này đồng bộ hồ sơ xác thực từ `/api/auth/me` khi vào ứng dụng, khi mở trang xác thực và định kỳ mỗi 30 giây. Trạng thái `identityStatus` là nguồn chính; popup không hiển thị với `VERIFIED` và tự đóng sau khi trạng thái mới được đồng bộ.
+
+Audit Admin có lọc actor/action/target/thời gian, phân trang 20 dòng và nội dung thao tác. `/api/staff/audit` giới hạn Moderator ở nhật ký do chính họ tạo. Chủ tin xem `/api/my/listings/{id}/history`, gồm tạo/sửa/gửi duyệt, quyết định kèm lý do, tạm ẩn/mở lại/đóng/đánh dấu đã thuê; endpoint kiểm tra quyền sở hữu tin.

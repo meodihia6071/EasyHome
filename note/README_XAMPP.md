@@ -14,9 +14,9 @@ mvn spring-boot:run
 ```
 
 4. PowerShell ở `frontend`: `npm install`, rồi `npm run dev`.
-5. Mở `http://localhost:5173`. OTP email local hiển thị ở console Spring Boot dưới dòng `[EASYHOME DEV EMAIL OTP]`.
+5. Tạo `.env` ở thư mục project theo `GMAIL_OTP_SETUP.md`, rồi chạy `start-dev.bat`. OTP đăng ký, OTP đăng nhập Admin/Staff và reset password được gửi qua Gmail SMTP. Chỉ khi cố ý test offline mới chọn `APP_EMAIL_MODE=console`.
 
-**Không sử dụng giấy tờ tùy thân thật hay chuyển tiền thật khi chưa nghiệm thu bảo mật.** Tất cả giao dịch ở profile dev chỉ là mô phỏng.
+Không sử dụng giấy tờ tùy thân thật. VietQR nạp tiền cần Admin đối soát thủ công; rút tiền được chuyển ngoài ứng dụng và Admin xác nhận sau khi đã chuyển. Profile dev không bật mock-payment.
 
 Nếu DB khác cổng `3306`, đặt `$env:DB_URL = 'jdbc:mariadb://127.0.0.1:3307/easyhome'` trước khi chạy backend. Nếu root có mật khẩu, đặt `$env:DB_PASSWORD` trong terminal, không ghi password vào file Git.
 

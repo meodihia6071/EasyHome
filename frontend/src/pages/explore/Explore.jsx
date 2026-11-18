@@ -3,17 +3,18 @@ import { Link, useSearchParams } from 'react-router-dom'
 import { ArrowRight, BedDouble, CheckCircle2, ChevronLeft, ChevronRight, House, MapPin, MessageCircle, Search, ShieldCheck, SlidersHorizontal } from 'lucide-react'
 import { api } from '../../api.js'
 import { typeOptions, cityOptions, errorText, Flash, Spinner, Empty, Card } from '../../components/shared-core.jsx'
-import administrativeDivisions from '../../data/vietnam-administrative-divisions.json'
 
 const priceOptions=[['','Không giới hạn'],['1000000','1 triệu'],['3000000','3 triệu'],['5000000','5 triệu'],['8000000','8 triệu'],['12000000','12 triệu'],['20000000','20 triệu'],['30000000','30 triệu']]
 
 export function Explore() {
   const [params,setParams]=useSearchParams()
+  const [provinces,setProvinces]=useState([])
   const [query,setQuery]=useState(params.get('q')||''),[locations,setLocations]=useState({cities:[],districts:[]})
   const [result,setResult]=useState(null),[error,setError]=useState('')
   const city=params.get('city')||'',type=params.get('type')||'',minPrice=params.get('minPrice')||'',maxPrice=params.get('maxPrice')||'',sort=params.get('sort')||'newest',page=Number(params.get('page')||0)
-  const suggestions=[...new Set([...administrativeDivisions.data.map(p=>p.name.local),...cityOptions,...locations.cities,...locations.districts])]
+  const suggestions=[...new Set([...provinces.map(p=>p.name.local),...cityOptions,...locations.cities,...locations.districts])]
 
+  useEffect(()=>{let active=true;import('../../data/vietnam-administrative-divisions.json').then(({default:data})=>{if(active)setProvinces(data.data)}).catch(()=>{});return()=>{active=false}},[])
   useEffect(()=>{api('/listings/locations',{token:null}).then(setLocations).catch(()=>{})},[])
   useEffect(()=>{setQuery(params.get('q')||'')},[params])
   useEffect(()=>{

@@ -1,4 +1,4 @@
-# CURRENT — EasyHome V2 Phase 1 (16/11/2026)
+# CURRENT — EasyHome V2 Phase 1 (18/11/2026)
 
 ## Update theo YeuCauUpdate.docx — 15/11/2026 (trạng thái tại thời điểm đó)
 
@@ -8,7 +8,7 @@
 - DONE: đặt lại mật khẩu tăng phiên bản xác thực và thu hồi mọi JWT đã cấp trước đó.
 - DONE: khóa tài khoản trả lý do và thời hạn; frontend kiểm tra phiên mỗi 15 giây, xóa session và hiện hộp thoại khi tài khoản bị khóa; route không đủ quyền hiển thị 404.
 - TESTED: `mvn.cmd -q clean test` — **11 test, 0 lỗi** trên H2 in-memory; `npm.cmd run build` — **PASS**; `scripts/test-core.ps1` — **198/198**.
-- PENDING tại 15/11: các hạng mục này đã được cập nhật sau đó; xem mục 16/11 ở cuối file để biết trạng thái hiện tại.
+- PENDING tại 15/11: các hạng mục này đã được cập nhật sau đó; xem các mục cập nhật ở cuối file để biết trạng thái hiện tại.
 
 Đã bắt đầu triển khai bản đặc tả V2 được duyệt. Code mới có trong ZIP này, không tự push GitHub.
 
@@ -188,4 +188,18 @@ Nguyên tắc: `DONE` = file đã tạo và quy tắc có thể kiểm tra; `TES
 - Sửa lỗi VIP/status legacy bằng Flyway V6 mở rộng cột `status` và `plan`; V7 tách số dư thật khỏi số dư mock cũ; hiển thị ảnh tại moderation và xóa mục tài khoản hệ thống.
 - Nạp VietQR tạo yêu cầu pending, người dùng bấm đã chuyển để báo Admin; số dư khả dụng mới được tách khỏi cột mock cũ qua Flyway V7 và chỉ tăng sau Admin đối soát. Rút tiền chờ Admin, không giữ/trừ khi tạo yêu cầu và chỉ trừ sau khi Admin xác nhận chuyển khoản.
 - SMTP OTP/reset password đọc secret qua biến môi trường; không ghi App Password vào repository.
-- Kiểm thử: Java rules 198/198 PASS; Maven/H2 14/14 PASS; Vite production build PASS. MariaDB/Flyway V6–V7, SMTP thật và browser E2E vẫn cần nghiệm thu trên môi trường tương ứng.
+- Kiểm thử: Java rules 198/198 PASS; Maven/H2 15/15 PASS; Vite production build PASS. MariaDB/Flyway V6–V8, SMTP thật và browser E2E vẫn cần nghiệm thu trên môi trường tương ứng.
+## 18/11/2026 — Hoàn thiện OTP Admin/Staff
+
+- Đối chiếu lại `YeuCauUpdate.docx`: OTP hiện có trước đó chỉ xác thực đăng ký; nhân viên đăng nhập bằng mật khẩu và vào thẳng hệ thống. Đã thêm bước OTP email bắt buộc cho ADMIN, SUPER_ADMIN, MODERATOR, FINANCE và SUPPORT.
+- Challenge lưu hash thay vì mã/challenge thô; OTP hết hạn sau 5 phút, dùng một lần, tối đa 5 lần gửi/24 giờ, 5 lần thử sai; resend chờ 60 giây. Backend chỉ phát JWT sau khi xác minh OTP đúng.
+- Thêm `/verify-staff-otp`, đồng hồ resend và email được che một phần; SMTP dùng cùng `.env` đã cấu hình.
+- Lazy-load dữ liệu địa giới; production bundle chính giảm xuống 347.39 kB (gzip 106.64 kB), data chunk riêng 154.85 kB (gzip 29.02 kB).
+- Flyway V8 thêm bảng challenge OTP. Test: Java rules 198/198 PASS; Maven/H2 15/15 PASS, có kiểm tra sai mã, xác thực đúng và chống dùng lại; Vite production build PASS.
+- Chưa chạy SMTP thật, MariaDB/Flyway migration hoặc browser E2E.
+## 19/11/2026 — Rà soát lịch sử và trạng thái xác thực
+
+- Lịch sử Admin có lọc theo nhân viên, loại thao tác, đối tượng và mốc thời gian; phân trang và hiển thị người thực hiện + nội dung quyết định. Bổ sung `/api/staff/audit`; Moderator chỉ xem thao tác của mình.
+- Thêm Flyway V9 lưu chi tiết trong audit. Bổ sung lịch sử vòng đời tin cho chủ bài, gộp sự kiện tạo/sửa/gửi kiểm duyệt/tác vụ trạng thái cùng lịch sử duyệt có ghi chú và người xử lý.
+- Popup CCCD chỉ dựa trên trạng thái server mới nhất; đồng bộ `/api/auth/me` lúc vào app, tại trang xác thực và mỗi 30 giây. `VERIFIED` đóng/ngăn popup.
+- Kiểm thử: Maven/H2 **16/16**, Vite production build **PASS**, business rules **198/198**. Flyway V9 trên MariaDB và browser E2E còn cần chạy ở môi trường tương ứng.

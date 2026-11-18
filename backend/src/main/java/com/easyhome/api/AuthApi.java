@@ -26,8 +26,9 @@ public class AuthApi {
   private final Users users; private final PasswordEncoder encoder; private final JwtEncoder jwt; private final Identity identity;
   private final EmailService emails;
   private final PasswordResetService resets;
-  AuthApi(Users users,PasswordEncoder encoder,JwtEncoder jwt,Identity identity,EmailService emails,PasswordResetService resets){
-    this.users=users;this.encoder=encoder;this.jwt=jwt;this.identity=identity;this.emails=emails;this.resets=resets;
+  private final StaffLoginOtpService staffLoginOtp;
+  AuthApi(Users users,PasswordEncoder encoder,JwtEncoder jwt,Identity identity,EmailService emails,PasswordResetService resets,StaffLoginOtpService staffLoginOtp){
+    this.users=users;this.encoder=encoder;this.jwt=jwt;this.identity=identity;this.emails=emails;this.resets=resets;this.staffLoginOtp=staffLoginOtp;
   }
   public record Signup(@NotBlank @Size(min=2,max=120) String fullName,@Email @NotBlank String email,
     @NotBlank @Size(min=8,max=72) String password,@NotBlank String phone){}
@@ -37,6 +38,9 @@ public class AuthApi {
   }
   public record Session(String token,Profile user){}
   public record EmailCode(String email,String code){}
+  public record StaffOtpCode(String challengeId,String code){}
+  public record StaffOtpResend(String challengeId){}
+  public record LoginPending(boolean requiresOtp,String challengeId,String maskedEmail,String message,Instant resendAvailableAt){}
   public record EmailRequest(String email){}
   public record ResetRequest(String email){}
   public record ResetConfirmation(String token,String password){}
@@ -71,12 +75,29 @@ public class AuthApi {
     users.findByEmailIgnoreCase(req.email().trim()).ifPresent(u->{if(!u.emailVerified && (u.registrationExpiresAt==null||u.registrationExpiresAt.isAfter(Instant.now())))emails.send(u);});
     return new Pending("Nếu email chưa xác thực và đủ điều kiện, OTP đã được gửi.");
   }
-  @PostMapping("/login") public Session login(@Valid @RequestBody Login req){
+  @PostMapping("/login") public Object login(@Valid @RequestBody Login req){
     User u=users.findByEmailIgnoreCase(req.email().trim()).orElseThrow(()->new ResponseStatusException(HttpStatus.UNAUTHORIZED,"Sai email hoặc mật khẩu"));
     if(!encoder.matches(req.password(),u.passwordHash))throw new ResponseStatusException(HttpStatus.UNAUTHORIZED,"Sai email hoặc mật khẩu");
     if(!u.emailVerified)throw new ResponseStatusException(HttpStatus.FORBIDDEN,"Email chưa xác thực, hãy nhập OTP");
     if(u.locked && (u.lockedUntil==null||u.lockedUntil.isAfter(Instant.now())))throw new AccountLockedException(u.lockReason,u.lockedUntil);
+    if(java.util.Set.of(AccountRole.ADMIN,AccountRole.SUPER_ADMIN,AccountRole.MODERATOR,AccountRole.FINANCE,AccountRole.SUPPORT).contains(u.role)){
+      StaffLoginOtpService.Issued challenge=staffLoginOtp.issue(u);
+      return new LoginPending(true,challenge.challengeId(),challenge.maskedEmail(),"Mã OTP đăng nhập đã được gửi tới email công việc.",challenge.resendAvailableAt());
+    }
     return session(u);
+  }
+  @PostMapping("/login/verify-otp") @Transactional(noRollbackFor=Rules.BusinessException.class)
+  public Session verifyStaffLoginOtp(@RequestBody StaffOtpCode request){
+    Rules.check(request!=null,"Yêu cầu OTP không hợp lệ");
+    User user=staffLoginOtp.confirm(request.challengeId(),request.code());
+    Rules.check(user!=null,"Mã OTP không đúng");
+    return session(user);
+  }
+  @PostMapping("/login/resend-otp")
+  public LoginPending resendStaffLoginOtp(@RequestBody StaffOtpResend request){
+    Rules.check(request!=null,"Yêu cầu OTP không hợp lệ");
+    StaffLoginOtpService.Issued challenge=staffLoginOtp.resend(request.challengeId());
+    return new LoginPending(true,challenge.challengeId(),challenge.maskedEmail(),"Mã OTP mới đã được gửi.",challenge.resendAvailableAt());
   }
   @GetMapping("/me") public Profile me(@AuthenticationPrincipal Jwt jwt){return Profile.from(identity.current(jwt));}
   @GetMapping("/session-status") public SessionStatus sessionStatus(@AuthenticationPrincipal Jwt jwt){identity.current(jwt);return new SessionStatus(true);}

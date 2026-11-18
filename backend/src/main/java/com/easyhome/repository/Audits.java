@@ -14,6 +14,7 @@ import java.time.Instant;
 import java.util.*;
 import org.springframework.data.domain.*;
 
-public interface Audits extends JpaRepository<Audit,Long> {
+public interface Audits extends JpaRepository<Audit,Long>,JpaSpecificationExecutor<Audit> {
   List<Audit> findTop100ByOrderByCreatedAtDesc();
+  List<Audit> findByTargetOrderByCreatedAtAsc(String target);
 }

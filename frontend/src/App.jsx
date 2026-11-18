@@ -1,8 +1,8 @@
-import React, { createContext, useContext, useEffect, useState } from 'react'
+import React, { createContext, useCallback, useContext, useEffect, useState } from 'react'
 import { BrowserRouter, Link, NavLink, Navigate, Route, Routes, useNavigate } from 'react-router-dom'
 import { Building2, Heart, Menu, Plus, ShieldCheck, LogOut, UserRound, Inbox, ReceiptText, Home as House, ArrowRight } from 'lucide-react'
 import { api, getSession, saveSession } from './api.js'
-import { Explore, Detail, SignIn, SignUp, MyListings, ListingForm, Orders, Saved, Leads, Moderation, NotFound } from './pages.jsx'
+import { Explore, Detail, SignIn, VerifyStaffOtp, SignUp, MyListings, ListingForm, Orders, Saved, Leads, Moderation, NotFound } from './pages.jsx'
 import { VerifyEmail, IdentityCenter, ListingMediaCenter, WalletCenter, ModerationDetail, StaffManagement, Phase1Checkout } from './phase1.jsx'
 import { ForgotPassword, ResetPassword } from './pages.jsx'
 
@@ -14,9 +14,9 @@ function Protected({ children, roles }) {
   if (roles && !roles.includes(session.user.role)) return <NotFound/>
   return children
 }
-function AccountDetails(){const {session}=useAuth();return <section className="container phase-page"><h1>Tài khoản của tôi</h1><div className="phase-card"><p><strong>Họ tên:</strong> {session.user.name}</p><p><strong>Email:</strong> {session.user.email}</p><p><strong>Số điện thoại:</strong> {session.user.phone}</p><p><strong>Vai trò:</strong> {session.user.role}</p><p><strong>Xác thực danh tính:</strong> {session.user.identityStatus|| (session.user.verified?'Đã xác thực':'Chưa xác thực')}</p><Link className="button button-outline" to="/identity">Quản lý xác thực</Link></div></section>}
+function AccountDetails(){const {session}=useAuth();const canVerify=!['ADMIN','SUPER_ADMIN'].includes(session.user.role);return <section className="container phase-page"><h1>Tài khoản của tôi</h1><div className="phase-card"><p><strong>Họ tên:</strong> {session.user.name}</p><p><strong>Email:</strong> {session.user.email}</p><p><strong>Số điện thoại:</strong> {session.user.phone}</p><p><strong>Vai trò:</strong> {session.user.role}</p>{canVerify&&<><p><strong>Xác thực danh tính:</strong> {session.user.identityStatus|| (session.user.verified?'Đã xác thực':'Chưa xác thực')}</p><Link className="button button-outline" to="/identity">Quản lý xác thực</Link></>}</div></section>}
 function Shell() {
-  const { session, logout } = useAuth()
+  const { session, logout, refreshProfile } = useAuth()
   const [menu, setMenu] = useState(false)
   const [balance,setBalance]=useState(null)
   const navigate = useNavigate()
@@ -54,6 +54,7 @@ function Shell() {
       <Route path="/" element={<Explore/>}/>
       <Route path="/listing/:id" element={<Detail/>}/>
       <Route path="/login" element={<SignIn/>}/>
+      <Route path="/verify-staff-otp" element={<VerifyStaffOtp/>}/>
       <Route path="/account" element={<Protected><AccountDetails/></Protected>}/>
       <Route path="/register" element={<SignUp/>}/>
       <Route path="/forgot-password" element={<ForgotPassword/>}/>
@@ -81,8 +82,19 @@ export default function App() {
   const [session, setSession] = useState(getSession)
   const [sessionIssue,setSessionIssue]=useState(null)
   const [identityPrompt,setIdentityPrompt]=useState(false)
+  const [profileReady,setProfileReady]=useState(false)
   const login = data => { saveSession(data); setSession(data) }
   const logout = () => { saveSession(null); setSession(null) }
+  const refreshProfile=useCallback(async(token=getSession()?.token)=>{
+    if(!token)return null
+    const profile=await api('/auth/me',{token})
+    setSession(previous=>{
+      if(previous?.token!==token)return previous
+      const next={...previous,user:{...previous.user,...profile}}
+      saveSession(next);return next
+    })
+    return profile
+  },[])
   useEffect(()=>{
     const handle=e=>{if(e.detail?.code==='IDENTITY_REQUIRED'){setIdentityPrompt(true);return}setSessionIssue(e.detail);saveSession(null);setSession(null)}
     window.addEventListener('easyhome:session-issue',handle)
@@ -90,14 +102,26 @@ export default function App() {
   },[])
   useEffect(()=>{
     if(!session?.token)return
-    const check=()=>api('/auth/session-status').catch(()=>{})
-    const timer=setInterval(check,15000)
+    const check=()=>refreshProfile().catch(()=>{})
+    const timer=setInterval(check,30000)
     return()=>clearInterval(timer)
-  },[session?.token])
-  useEffect(()=>{setIdentityPrompt(Boolean(session?.token&&!session.user?.verified&&!['ADMIN','SUPER_ADMIN'].includes(session.user?.role)))},[session?.token,session?.user?.verified,session?.user?.role])
+  },[session?.token,refreshProfile])
+  useEffect(()=>{
+    const token=session?.token
+    if(!token){setProfileReady(true);setIdentityPrompt(false);return}
+    let active=true;setProfileReady(false)
+    refreshProfile(token).catch(()=>{}).finally(()=>{if(active)setProfileReady(true)})
+    return()=>{active=false}
+  },[session?.token,refreshProfile])
+  useEffect(()=>{
+    if(!profileReady)return
+    const user=session?.user
+    const verified=user?.identityStatus?user.identityStatus==='VERIFIED':Boolean(user?.verified)
+    setIdentityPrompt(Boolean(session?.token&&!verified&&!['ADMIN','SUPER_ADMIN'].includes(user?.role)))
+  },[profileReady,session?.token,session?.user?.verified,session?.user?.identityStatus,session?.user?.role])
   const locked=sessionIssue?.code==='ACCOUNT_LOCKED'
   const until=locked&&sessionIssue.until!=='Vĩnh viễn'?new Date(sessionIssue.until).toLocaleString('vi-VN'):'Vĩnh viễn'
-  return <Auth.Provider value={{session,login,logout}}><BrowserRouter><Shell/></BrowserRouter>
+  return <Auth.Provider value={{session,login,logout,refreshProfile}}><BrowserRouter><Shell/></BrowserRouter>
     {identityPrompt&&<div className="session-overlay"><section className="session-dialog" role="alertdialog" aria-modal="true"><h2>Hãy xác thực danh tính</h2><p>Hồ sơ của bạn chưa được xác thực. Một số thao tác quan trọng như đăng tin, thanh toán gói hoặc rút tiền cần hoàn tất bước này.</p><div className="phase-actions"><a className="button button-primary" href="/identity" onClick={()=>setIdentityPrompt(false)}>Xác thực ngay</a><button className="button button-outline" onClick={()=>setIdentityPrompt(false)}>Để sau</button></div></section></div>}
     {sessionIssue&&<div className="session-overlay"><section className="session-dialog" role="alertdialog" aria-modal="true" aria-labelledby="session-title">
       <h2 id="session-title">{locked?'Tài khoản đang bị khóa':'Phiên đăng nhập đã kết thúc'}</h2>

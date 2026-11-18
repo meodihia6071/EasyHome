@@ -21,6 +21,8 @@ File `backend/src/main/resources/application.yml` đã có cấu hình SMTP qua 
 - `app.email-from=${APP_EMAIL_FROM:${SMTP_USERNAME:no-reply@easyhome.vn}}`
 - `app.frontend-url=${APP_FRONTEND_URL:http://localhost:5173}` (được dùng làm URL trong thư đặt lại mật khẩu)
 
+Email này được dùng cho OTP đăng ký, OTP bắt buộc khi Admin/Staff đăng nhập, và liên kết đặt lại mật khẩu. OTP Admin/Staff chỉ trả session sau khi mã đúng; mã hết hạn sau 5 phút, tối đa 5 lần gửi trong 24 giờ và 5 lần nhập sai.
+
 ### Lưu cấu hình trong project để chạy bằng `start-dev.bat`
 
 Tạo file `.env` ở thư mục gốc project (cùng cấp với `start-dev.bat`) và điền:

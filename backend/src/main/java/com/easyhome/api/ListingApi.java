@@ -24,9 +24,9 @@ import org.springframework.web.server.ResponseStatusException;
 
 @RestController
 public class ListingApi {
-  private final Listings listings;private final Properties properties;private final Identity identity;private final Audits audits;private final BillingApi billing;private final MediaFiles media;
-  ListingApi(Listings l,Properties p,Identity i,Audits a,BillingApi billing,MediaFiles media){
-    listings=l;properties=p;identity=i;audits=a;this.billing=billing;this.media=media;
+  private final Listings listings;private final Properties properties;private final Identity identity;private final Audits audits;private final BillingApi billing;private final MediaFiles media;private final ListingReviews reviews;private final Users users;
+  ListingApi(Listings l,Properties p,Identity i,Audits a,BillingApi billing,MediaFiles media,ListingReviews reviews,Users users){
+    listings=l;properties=p;identity=i;audits=a;this.billing=billing;this.media=media;this.reviews=reviews;this.users=users;
   }
   public record Form(String title,String description,String city,String district,String address,String type,
     BigDecimal monthlyRent,Double area,Integer bedrooms,String imageUrl,PublisherType publisherType){}
@@ -46,6 +46,7 @@ public class ListingApi {
       f.area(),f.bedrooms(),f.imageUrl()==null?"":f.imageUrl().trim());l.title=f.title().trim();l.description=f.description().trim();
   }
   public record Locations(List<String> cities,List<String> districts,List<String> streets){}
+  public record ListingHistory(Instant at,String action,String details,Long actorId,String actorName){}
   @GetMapping("/api/listings/locations") @Transactional(readOnly=true)
   public Locations locations(@RequestParam(required=false) String city,@RequestParam(required=false) String district){
     Instant now=Instant.now();List<String> streets=city==null||district==null?List.of():listings.findActiveAddresses(ListingStatus.ACTIVE,Availability.AVAILABLE,now,city,district);
@@ -94,6 +95,21 @@ public class ListingApi {
     Listing l=own(id,identity.current(jwt));Property p=l.property;
     return new Form(l.title,l.description,p.getCity(),p.getDistrict(),p.getAddress(),p.getType(),p.getMonthlyRent(),p.getArea(),p.getBedrooms(),p.getImageUrl(),l.publisherType==null?PublisherType.OWNER:l.publisherType);
   }
+  @GetMapping("/api/my/listings/{id}/history") @Transactional(readOnly=true)
+  public List<ListingHistory> history(@AuthenticationPrincipal Jwt jwt,@PathVariable Long id){
+    own(id,identity.current(jwt));var history=reviews.findByListing_IdOrderByCreatedAtAsc(id);
+    List<Audit> activity=audits.findByTargetOrderByCreatedAtAsc("listing:"+id);
+    Set<Long> actorIds=new HashSet<>(activity.stream().map(a->a.actorId).filter(actor->actor!=null&&actor>0).toList());
+    history.stream().map(r->r.reviewerId).filter(Objects::nonNull).forEach(actorIds::add);
+    Map<Long,String> names=new HashMap<>();
+    for(User user:users.findAllById(actorIds))names.put(user.id,user.fullName);
+    List<ListingHistory> result=new ArrayList<>();
+    activity.stream().filter(a->!a.action.startsWith("LISTING_")).forEach(a->result.add(new ListingHistory(a.createdAt,a.action,a.details,a.actorId,
+      a.actorId==0?"Hệ thống":names.getOrDefault(a.actorId,"Tài khoản #"+a.actorId))));
+    history.forEach(r->result.add(new ListingHistory(r.createdAt,"LISTING_"+r.decision,r.note,r.reviewerId,
+      r.reviewerId==null?"Hệ thống":names.getOrDefault(r.reviewerId,"Nhân viên #"+r.reviewerId))));
+    result.sort(Comparator.comparing(ListingHistory::at));return result;
+  }
   @PostMapping("/api/my/listings") @Transactional
   public View create(@AuthenticationPrincipal Jwt jwt,@RequestBody Form f){
     User u=identity.current(jwt);validate(f);
@@ -102,7 +118,8 @@ public class ListingApi {
   }
   @PutMapping("/api/my/listings/{id}") @Transactional
   public View update(@AuthenticationPrincipal Jwt jwt,@PathVariable Long id,@RequestBody Form f){
-    User u=identity.current(jwt);Listing l=own(id,u);Rules.edit(l.status);validate(f);apply(l.property,l,f);if(f.publisherType()!=null)l.publisherType=f.publisherType();l.reviewNote=null;return View.from(l);
+    User u=identity.current(jwt);Listing l=own(id,u);Rules.edit(l.status);validate(f);apply(l.property,l,f);if(f.publisherType()!=null)l.publisherType=f.publisherType();l.reviewNote=null;
+    audits.save(new Audit(u.id,"UPDATE_DRAFT","listing:"+id));return View.from(l);
   }
   @PostMapping("/api/my/listings/{id}/submit") @Transactional
   public View submit(@AuthenticationPrincipal Jwt jwt,@PathVariable Long id){
@@ -129,13 +146,14 @@ public class ListingApi {
     listings.save(fresh);audits.save(new Audit(u.id,"RELIST_DRAFT","listing:"+fresh.id));return View.from(fresh);
   }
   @PostMapping("/api/my/listings/{id}/pause") @Transactional
-  public View pause(@AuthenticationPrincipal Jwt jwt,@PathVariable Long id){Listing l=own(id,identity.current(jwt));l.setStatus(Rules.pause(l.getStatus()));return View.from(l);}
+  public View pause(@AuthenticationPrincipal Jwt jwt,@PathVariable Long id){User u=identity.current(jwt);Listing l=own(id,u);l.setStatus(Rules.pause(l.getStatus()));audits.save(new Audit(u.id,"PAUSE_LISTING","listing:"+id));return View.from(l);}
   @PostMapping("/api/my/listings/{id}/resume") @Transactional
-  public View resume(@AuthenticationPrincipal Jwt jwt,@PathVariable Long id){Listing l=own(id,identity.current(jwt));l.setStatus(Rules.resume(l.getStatus(),l.property.getAvailability(),l.expiresAt,Instant.now()));return View.from(l);}
+  public View resume(@AuthenticationPrincipal Jwt jwt,@PathVariable Long id){User u=identity.current(jwt);Listing l=own(id,u);l.setStatus(Rules.resume(l.getStatus(),l.property.getAvailability(),l.expiresAt,Instant.now()));audits.save(new Audit(u.id,"RESUME_LISTING","listing:"+id));return View.from(l);}
   @PostMapping("/api/my/listings/{id}/close") @Transactional
-  public View close(@AuthenticationPrincipal Jwt jwt,@PathVariable Long id){Listing l=own(id,identity.current(jwt));l.setStatus(Rules.close(l.getStatus()));return View.from(l);}
+  public View close(@AuthenticationPrincipal Jwt jwt,@PathVariable Long id){User u=identity.current(jwt);Listing l=own(id,u);l.setStatus(Rules.close(l.getStatus()));audits.save(new Audit(u.id,"CLOSE_LISTING","listing:"+id));return View.from(l);}
   @PostMapping("/api/my/listings/{id}/rented") @Transactional
   public View rented(@AuthenticationPrincipal Jwt jwt,@PathVariable Long id){
-    Listing l=own(id,identity.current(jwt));l.setStatus(Rules.close(l.getStatus()));l.property.setAvailability(Availability.RENTED);return View.from(l);
+    User u=identity.current(jwt);Listing l=own(id,u);l.setStatus(Rules.close(l.getStatus()));l.property.setAvailability(Availability.RENTED);
+    audits.save(new Audit(u.id,"MARK_RENTED","listing:"+id));return View.from(l);
   }
 }

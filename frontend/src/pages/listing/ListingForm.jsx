@@ -9,14 +9,13 @@ import {
 } from 'lucide-react'
 import { api, date, fallbackPhoto, getSession, money, rent, statuses, types } from '../../api.js'
 import { upload } from '../../components/shared-phase1.jsx'
-import administrativeDivisions from '../../data/vietnam-administrative-divisions.json'
 import { useAuth } from '../../App.jsx'
 import { typeOptions, cityOptions, errorText, Flash, Header, Photo, blankForm } from '../../components/shared-core.jsx'
 
-export function ListingForm(){const {id}=useParams();const navigate=useNavigate();const [form,setForm]=useState({...blankForm,publisherType:'OWNER'}),[loading,setLoading]=useState(Boolean(id)),[error,setError]=useState(''),[success,setSuccess]=useState(''),[busy,setBusy]=useState(false),[streets,setStreets]=useState([]),[avatar,setAvatar]=useState(null),[avatarPreview,setAvatarPreview]=useState('')
-  const provinces=administrativeDivisions.data
+export function ListingForm(){const {id}=useParams();const navigate=useNavigate();const [form,setForm]=useState({...blankForm,publisherType:'OWNER'}),[loading,setLoading]=useState(Boolean(id)),[error,setError]=useState(''),[success,setSuccess]=useState(''),[busy,setBusy]=useState(false),[streets,setStreets]=useState([]),[avatar,setAvatar]=useState(null),[avatarPreview,setAvatarPreview]=useState(''),[provinces,setProvinces]=useState([])
   const selectedProvince=provinces.find(p=>p.name.local===form.city||p.name.en===form.city)
   const wards=selectedProvince?.ward||[]
+  useEffect(()=>{let active=true;import('../../data/vietnam-administrative-divisions.json').then(({default:data})=>{if(active)setProvinces(data.data)}).catch(()=>{});return()=>{active=false}},[])
   useEffect(()=>{if(id)api('/my/listings/'+id).then(d=>{const oldCity=d.city==='TP. Hồ Chí Minh'?'Hồ Chí Minh':d.city;setForm({...d,city:oldCity});setLoading(false)}).catch(e=>{setError(errorText(e));setLoading(false)})},[id])
   useEffect(()=>{if(!form.city||!form.district){setStreets([]);return}const query=new URLSearchParams({city:form.city,district:form.district});api('/listings/locations?'+query,{token:null}).then(x=>setStreets(x.streets||[])).catch(()=>setStreets([]))},[form.city,form.district])
   const set=(field,value)=>setForm(old=>({...old,[field]:value}))

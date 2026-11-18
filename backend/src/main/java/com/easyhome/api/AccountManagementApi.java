@@ -44,13 +44,13 @@ public class AccountManagementApi {
   }
   @PostMapping("/api/admin/users/{id}/unlock") @Transactional
   public AdminApi.UserView unlock(@AuthenticationPrincipal Jwt jwt,@PathVariable Long id,@RequestBody UnlockInput input){
-    User staff=identity.admin(jwt);RulesV2.require(input!=null&&input.reason()!=null&&input.reason().trim().length()>=10,"Cần lý do mở khóa từ 10 ký tự");
+    User staff=identity.admin(jwt);RulesV2.require(input!=null&&input.reason()!=null&&input.reason().trim().length()>=10&&input.reason().length()<=500,"Cần lý do mở khóa từ 10-500 ký tự");
     User u=users.locked(id).orElseThrow(()->new ResponseStatusException(HttpStatus.NOT_FOUND));
     RulesV2.require(u.locked,"Tài khoản không bị khóa");u.locked=false;u.lockReason=null;u.lockedUntil=null;
     addLog(u,staff.id,"UNLOCK",input.reason().trim(),null);return AdminApi.UserView.from(u);
   }
   void addLog(User u,Long actor,String action,String reason,Instant until){
     AccountLockHistory h=new AccountLockHistory();h.user=u;h.actorId=actor;h.action=action;h.reason=reason;h.untilAt=until;
-    history.save(h);audits.save(new Audit(actor,"ACCOUNT_"+action,"user:"+u.id));
+    history.save(h);audits.save(new Audit(actor,"ACCOUNT_"+action,"user:"+u.id,reason));
   }
 }

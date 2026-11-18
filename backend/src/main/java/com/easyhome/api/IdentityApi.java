@@ -72,10 +72,10 @@ public class IdentityApi {
     v.status=IdentityStatus.valueOf(req.decision());User owner=users.locked(v.user.getId()).orElseThrow();
     // The owner may already be a Hibernate lazy proxy through v.user. Never write its fields directly.
     owner.setIdentityStatus(v.status);
-    v.note=req.note();v.reviewerId=staff.id;v.reviewedAt=Instant.now();
+    v.note=req.note()==null?null:req.note().trim();v.reviewerId=staff.id;v.reviewedAt=Instant.now();
     // Persist both the reviewed document and the account used by BillingApi in the next request.
     users.saveAndFlush(owner);requests.saveAndFlush(v);
-    audits.save(new Audit(staff.id,"IDENTITY_"+v.status,"identity:"+id));
+    audits.save(new Audit(staff.id,"IDENTITY_"+v.status,"identity:"+id,v.note));
     return IdentityView.of(v,media.findByIdentityVerification_IdOrderByIdAsc(id));
   }
   public record ReviewDecision(String decision,String note){}
